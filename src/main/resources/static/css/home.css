@@ -1,0 +1,41 @@
+.card{
+    border: 1px solid silver;
+    border-radius: 5px;
+    margin: 3px;
+    padding: 12px;
+}
+
+
+.card img {
+    height: 150px;
+    width: 150px;
+    position: relative;
+}
+
+.card .card-img-top{
+    float: left;
+}
+.card .card-body{
+    float: right;
+    padding: 0px;
+
+}
+.card .card-body p{
+    color: #0c0c0c;
+}
+
+.row {
+    margin: 0px;
+}
+
+.col-sm-3 {
+    padding: 0px;
+    border: none;
+}
+#footer{
+    background: #2aabd2;
+    position: relative;
+    height: 100px;
+    margin-top: -100px;
+    clear: both;
+}

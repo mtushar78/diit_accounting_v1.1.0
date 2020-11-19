@@ -1,0 +1,24 @@
+.common{
+    font-size: 13px;
+    margin: auto;
+    width: 93%;
+    height: 97%;
+    padding: 10px;
+    padding-bottom: 100px !important;
+}
+
+.hidden{
+    display: none !important;
+    visibility: hidden !important;
+}
+.requiredField{
+    font-size: 13px;
+    font-weight: bold ;
+}
+.requiredField:after{
+    content:"*";
+    color:red;
+}
+.form-control{
+    height: 37px;
+}

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/student-waiver-setup.css}"/>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<!--    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">-->
+</head>
+<body>
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<script type="text/javascript">
+    var cgpaSchemeList = [];
+    var currentYear = new Date().getFullYear();
+    var waiverHeadList = [];
+    var batchWiseCgpaSchemeList = [];
+
+    $(document).ready(function() {
+
+
+        funGetAllCgpaScheme();
+
+
+
+        // function for validating form before submit
+        function validator(){
+
+            var studentId = $("#studentId").val();
+
+
+            if($.trim(studentId) == ''){
+
+                alert("Please enter a student id");
+                return false;
+
+            } else if(paymentHeadWithAmountList.length < 1){
+
+                alert("Please select payment head and enter payment amount.");
+                return false;
+            }
+
+            return true;
+        }
+
+
+
+
+
+        // function for validating form before submit
+        function validator(){
+
+
+            return true;
+        }
+
+        /* Submitting form to controller*/
+        $("#submit").click(function(event) {
+
+            event.preventDefault();
+
+            if (validator()){
+
+                var data = [];
+
+                for(var key in waiverHeadList){
+
+                    selectedValue = waiverHeadList[key].split("_");
+
+                    var element = {fkStudentId:[],fkPaymentHeadId:[],discountAmount:[],fromMonths:[],toMonths:[]};
+
+                    element["fkStudentId"] 		= selectedValue[0];
+                    element["fkPaymentHeadId"] 	= selectedValue[1];
+                    element["discountAmount"] 	= $('#discount_' + selectedValue[1]).val();
+                    element["fromMonths"] 		= $('#startMonth_' + selectedValue[1]).val();
+                    element["toMonths"]   		= $('#endMonth_' + selectedValue[1]).val();
+
+
+                    data.push(element);
+                }
+
+
+                $.ajax({
+                    type: "POST",
+                    url: "savestudentdiscount",
+                    data: JSON.stringify(data),
+                    contentType: "application/json; charset=utf-8",
+                    success: function (data) {
+
+                        //$("#btnClear").click();
+                        $("#submit").prop("disabled", false);
+                        $("#successMessage").html(data);
+                        $("#successMessage").removeClass("hidden");
+                        $("#errorMessage").addClass("hidden");
+                        // funGenerateDataGrid(programList);
+                    },
+                    error: function (e) {
+                        $("#errorMessage").html("Error: Record Not Saved");
+                        $("#errorMessage").removeClass("hidden");
+                        $("#submit").prop("disabled", false);
+                        alert(JSON.stringify(e));
+                    }
+                });
+
+            } // End of validation
+
+
+        }); // End of form submission
+
+    }); // End of (document).ready()
+
+
+
+    //Function for searching a single student
+    function funSearchStudent(){
+
+        $("#successMessage").addClass("hidden");
+        $("#errorMessage").addClass("hidden");
+
+        //Request sending to PersonInfosController
+        $.post("getsinglestudentinfo",{studentId: $("#studentId").val()},function(data){
+
+            var resultData = '';
+            var paymenSchemeId= 0;
+            var tmpSscCgpa = data.ssccgpa;
+            var tmpHscCgpa = data.hsccgpa;
+
+
+            if(data.ssccgpa > 5){
+                tmpSscCgpa = '5 (G)';
+            } else {
+                tmpSscCgpa = data.ssccgpa;
+            }
+
+            if(data.hsccgpa > 5){
+                tmpHscCgpa = '5 (G)';
+            } else {
+                tmpHscCgpa = data.hsccgpa;
+            }
+
+            //paymenSchemeId = funGetCGPAScheme(data.hsccgpa,data.fkProgramBatchId);
+
+
+            resultData = '<table class="table" cellpadding="1" cellspacing="1" style="border: 1px solid #ddd;">'
+                + '<tr>'
+                + '<td>ID</td><td style="width:10px;">:</td><td>' + data.studentId + '</td>'
+                + '<td>Admission Date</td><td style="width:10px;">:</td><td>' + data.admissionDate + '</td></tr>'
+                + '<tr><td>Program</td><td style="width:10px;">:</td><td>' + data.programName + '</td>'
+                + '<td>Batch</td><td style="width:10px;">:</td><td>' + data.batchno + '</td></tr>'
+                + '<tr><td>SSC Result</td><td style="width:10px;">:</td><td>' + tmpSscCgpa + '</td>'
+                + '<td>HSC Result</td><td style="width:10px;">:</td><td>' + tmpHscCgpa + '</td></tr>'
+                + '<tr><td style="display:none;">Start Semester</td><td style="width:10px;display:none;">:</td><td style="display:none;">' + data.startingSemesterNo + '</td>'
+                + '<td style="display:none;">Status</td><td style="width:10px; display:none;">:</td><td style="display:none;">' + data.activationStatus + '</td></tr>'
+                + '</tr></table>';
+
+            /*
+                -> Generating payable list
+                -> Mapping to ProgramBatchController
+            */
+
+            var batchId = data.fkProgramBatchId;
+
+            $.post("getCGPASchemeByProgramBatch",{programBatchId: batchId},function(schemeData){
+                var cgpaSchemeId = '';
+
+                $.each(schemeData, function(i, v) {
+
+                    if ( data.hsccgpa >= v.lowestValue && data.hsccgpa <= v.hieghtValue ) {
+                        cgpaSchemeId = v.id;
+                        return;
+                    }
+                });
+
+                //alert(cgpaSchemeId);
+
+                $.post("getbatchfeesbyscheme",{batchId: batchId ,cgpaSchemeId: cgpaSchemeId},function(data){
+
+                    $("#divPaymentInfo").html("");
+                    var studentId = $("#studentId").val();
+
+                    var tblPaymentInfo = '<h4 class="text-info" align="left">Fees List</h4><table id="tblPaymentInfo" class="table table-bordered" style="background-color: white;"><tr><th></th><th class="hidden">Head ID</th><th>Payment Head</th><th>Amount</th><th>Pay Times</th><th>Discount/Times</th><th>Start Month</th><th>End Month</th></tr>';
+
+                    for(var key in data){
+
+                        tblPaymentInfo += '<tr><td><input id="waiverHeadCheck_' + data[key].paymentHeadId + '" name="waiverHeadCheck"  onclick="funWaiverHeadCheck(' + data[key].paymentHeadId + ')" value="' + studentId + "_" + data[key].paymentHeadId +  '" type="checkbox">'
+                            +  '</td><td class="hidden">' + data[key].paymentHeadId
+                            + '</td><td>' + data[key].headName
+                            + '</td><td>' + data[key].amount
+                            + '</td><td>' + data[key].payTimes
+                            + '</td><td><input type="text" id="discount_' + data[key].paymentHeadId + '" name="discount" class="form-control" placeholder="Enter Discount Amount" disabled>'
+                            + '</td><td><input type="text" id="startMonth_' + data[key].paymentHeadId + '" name="startMonth" class="form-control" placeholder="Select Month" disabled>'
+                            + '</td><td><input type="text" id="endMonth_' + data[key].paymentHeadId + '" name="endMonth" class="form-control" placeholder="Enter Select Month" disabled>'
+                            + '</td></tr>';
+                    }
+
+                    tblPaymentInfo += '</table>';
+
+                    $("#divPaymentInfo").html(tblPaymentInfo);
+                    $("input[name='startMonth'], input[name='endMonth']").monthpicker({
+                        pattern: 'yyyy-mm',
+                        selectedYear: currentYear,
+                        startYear: currentYear - 2,
+                        finalYear: currentYear + 4
+                    });
+
+
+
+                    $("input[name='discount']").keydown(function (e) {
+
+                        var txtVal = $(this).val().length;
+
+                        // Allow: backspace, delete, tab, escape, enter and .
+                        if ($.inArray(e.keyCode, [46, 8, 9, 27, 13, 110, 190]) !== -1 ||
+                            // Allow: Ctrl+A, Command+A
+                            (e.keyCode === 65 && (e.ctrlKey === true || e.metaKey === true)) ||
+                            // Allow: home, end, left, right, down, up
+                            (e.keyCode >= 35 && e.keyCode <= 40)) {
+                            // let it happen, don't do anything
+                            return;
+                        }
+
+                        // Ensure that it is a number and stop the keypress
+                        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                            e.preventDefault();
+                        }
+                    });
+
+
+                    //Change event for waiver inputes
+                    $(':checkbox[name=waiverHeadCheck]').on('change', function() {
+                        waiverHeadList = $(':checkbox[name=waiverHeadCheck]:checked').map(function() {
+                            return this.value;
+                        }).get();
+                    });
+
+
+
+                    /*===============================================
+                        -> Getting existing waivers
+                        -> Request mapping to StudentDiscountsController
+                    =================================================*/
+                    //funGetExistingWaivers();
+                    $.post("getstudentwaiver", {studentId: $("#studentId").val()}, function(existingWaiver){
+
+                        var waiverTable = '';
+
+                        if(existingWaiver.length > 0){
+
+                            waiverTable += '<p class="h4 text-info">Existing waivers </p><table class="table" cellpadding="1" cellspacing="1" style="border: 1px solid #ddd;">'
+                                + '<tr>'
+                                + '<th style="display:none;">ID</th>'
+                                + '<th style="display:none;">Student</th>'
+                                + '<th style="display:none;">Head ID</th>'
+                                + '<th>Head Name</th>'
+                                + '<th>Waived Amount</th>'
+                                + '<th>Start From</th>'
+                                + '<th>End Month</th>'
+                                + '<th>Status</th><th></th><th></th>'
+                                + '</tr>';
+
+
+                            for(var key in existingWaiver){
+                                var tmpHeadName = "";
+
+                                for(var key1 in data){
+
+                                    if(data[key1].paymentHeadId == existingWaiver[key].fkPaymentHeadId){
+                                        //alert(data[key1].headName);
+                                        tmpHeadName = data[key1].headName;
+                                        break;
+                                    }
+                                }
+
+                                waiverTable += '<tr>'
+                                    + '<td style="display:none;">' + existingWaiver[key].id + '</td>'
+                                    + '<td style="display:none;">' + existingWaiver[key].fkStudentId + '</td>'
+                                    + '<td style="display:none;">' + existingWaiver[key].fkPaymentHeadId + '</td>'
+                                    + '<td>' + tmpHeadName + '</td>'
+                                    + '<td>' + existingWaiver[key].discountAmount + '</td>'
+                                    + '<td>' + existingWaiver[key].fromMonths + '</td>'
+                                    + '<td>' + existingWaiver[key].toMonths + '</td>'
+                                    + '<td>' + (existingWaiver[key].status == 1? "Active" : existingWaiver[key].status == 2? "Finished" : existingWaiver[key].status == 3? "Cancelled" : "Undefined") + '</td>'
+                                    // + '<td align="center" width="1%"><p data-placement="top" data-toggle="tooltip" title="" data-original-title="Edit"><button class="btn btn-primary btn-xs" data-title="Edit" data-toggle="modal" onclick="funPopulateItem(' + existingWaiver[key].id + "," + existingWaiver[key].fkPaymentHeadId + "," + existingWaiver[key].discountAmount + ",'" + existingWaiver[key].fromMonths + "', '"+ existingWaiver[key].toMonths + "'" + ')"><span class="glyphicon glyphicon-pencil"></span></button></p></td>'
+                                    + '<td align="center" width="1%"><p data-placement="top" data-toggle="tooltip" title="" data-original-title="Edit" style="margin-bottom: 0px"><button type="button" class="btn btn-outline-info btn-sm" onclick="funPopulateItem(' + existingWaiver[key].id + "," + existingWaiver[key].fkPaymentHeadId + "," + existingWaiver[key].discountAmount + ",'" + existingWaiver[key].fromMonths + "', '"+ existingWaiver[key].toMonths + "'" + ')">Edit</button></p></td>'
+                                    // + '<td>' + (existingWaiver[key].status == 1? '<p data-placement="top" data-toggle="tooltip" title="Inactive"> <button class="btn btn-danger btn-xs" data-title="Inactive" onclick="funDelItem(' + existingWaiver[key].id + ')"><span class="glyphicon glyphicon-ban-circle"></span></button></p>': '') + '</td>'
+                                    + '<td>' + (existingWaiver[key].status == 1? '<p data-placement="top" data-toggle="tooltip" title="Inactive"  style="margin-bottom: 0px"> <button type="button" class="btn btn-outline-danger btn-sm" onclick="funDelItem(' + existingWaiver[key].id + ')">Inactive</button></p>': '') + '</td>'
+                                    + '</tr>';
+                            }
+
+                            waiverTable += '</table>'
+                        }
+
+                        $("#divExistingwaiver").html(waiverTable);
+                    }); //End of existing waiver post() method
+                }); //End of payable list post() method
+            }); //End of CGPSScheme request getCGPASchemeByProgramBatch
+
+
+            $("#divStudentInfo").html(resultData);
+
+        });
+    }
+
+
+
+
+
+    function funGetExistingWaivers(prmStudentId){
+
+
+    }
+
+
+
+
+    function funWaiverHeadCheck(rowId){
+
+        //var appraisalHeadId = $("#appraisalHeadCheckId_"+checkId).val();
+        if($("#waiverHeadCheck_" + rowId).is(':checked')){
+
+            $('#discount_' + rowId).prop('disabled',false);
+            $('#startMonth_' + rowId).prop('disabled',false);
+            $('#endMonth_' + rowId).prop('disabled',false);
+        }  else {
+
+            $('#discount_' + rowId).prop('disabled',true);
+            $('#startMonth_' + rowId).prop('disabled',true);
+            $('#endMonth_' + rowId).prop('disabled',true);
+        }
+
+    }
+
+
+
+
+
+
+
+    function funGetCGPAScheme(cgpa,paramProgramBatchId){
+
+        var cgpaSchemeId = '';
+        var sscCgpa = 0;
+        var hscCgpa = 0;
+
+        if($('#goldenSSC').prop('checked') && $('#ssccgpa').val() > 4.99) {
+            sscCgpa = 6;
+        } else {
+            sscCgpa = $("#ssccgpa").val();
+        }
+
+        if($('#goldenHSC').prop('checked')  && $('#hsccgpa').val() > 4.99) {
+            hscCgpa = 6;
+        } else {
+            hscCgpa = cgpa;
+        }
+
+        if( sscCgpa == 6 && hscCgpa == 6){
+            cgpa = 6.00;
+        }
+
+        $.post("getCGPASchemeByProgramBatch",{programBatchId: paramProgramBatchId},function(data){
+
+            $.each(data, function(i, v) {
+
+                if ( cgpa >= v.lowestValue && cgpa <= v.hieghtValue ) {
+
+                    cgpaSchemeId = v.id;
+
+                    return;
+                }
+            });
+
+        });
+
+        return cgpaSchemeId;
+    }
+
+
+
+
+
+
+
+
+    //Function for generating HSC CGPA scheme json list
+    function funGetAllCgpaScheme(){
+
+        $.post("getallcgpascheme",function(data){
+
+            cgpaSchemeList = [];
+
+            for(var key in data){
+
+                var element = {id:[],lowestValue:[],hieghtValue:[]};
+                element["id"]  = data[key].id;
+                element["lowestValue"]  = data[key].lowestValue;
+                element["hieghtValue"] = data[key].hieghtValue;
+
+                cgpaSchemeList.push(element);
+            }
+        });
+    }
+
+
+
+
+
+
+    function funDelItem(discountId){
+
+        $("#dialog-confirm").dialog({
+            resizable: false,
+            height: "auto",
+            width: 400,
+            modal: true,
+            buttons: {
+                "Inactive": function() {
+
+                    $.post("inactivewaiveditem",{discountId: discountId},function(data){
+                        $("#successMessage").html(data);
+                    });
+
+                    $( this ).dialog( "close" );
+                },
+                Cancel: function() {
+                    $( this ).dialog( "close" );
+                }
+            }
+        });
+    }
+
+
+
+
+
+
+    function funPopulateItem(prmId,prmHeadId,prmWaiverAmount,prmFromMonth,prmToMonth){
+
+        $("#successMessage").addClass("hidden");
+        $("#errorMessage").addClass("hidden");
+
+        $("#waiverHeadCheck_" + prmHeadId).prop('checked', true).change();
+        funWaiverHeadCheck(prmHeadId);
+        $('#discount_' + prmHeadId).val(prmWaiverAmount);
+        $('#startMonth_' + prmHeadId).val(prmFromMonth);
+        $('#endMonth_' + prmHeadId).val(prmToMonth);
+    }
+
+    function funGetCGPASchemeByProgramBatch(paramProgramBatchId){
+
+        //alert("param: " + paramProgramBatchId);
+
+        $.post("getCGPASchemeByProgramBatch",{programBatchId: paramProgramBatchId},function(data){
+
+            alert("getting schemes" + JSON.stringify(data));
+
+            batchWiseCgpaSchemeList = [];
+
+            for(var key in data){
+
+                var element = {id:[],lowestValue:[],hieghtValue:[]};
+                element["id"]  = data[key].id;
+                element["lowestValue"]  = data[key].lowestValue;
+                element["hieghtValue"] = data[key].hieghtValue;
+
+                batchWiseCgpaSchemeList.push(element);
+            }
+        });
+    }
+</script>
+<div class="common">
+    <div class="bootstrap-iso ">
+        <div class="container-fluid ">
+            <div class="row d-flex justify-content-center shadow-item">
+
+                <div class="col-xs-12 col-md-12">
+                    <fieldset>
+                        <div class="row alert alert-info" style="margin:20px 0 20px 0;">
+                            <div class="col-lg-4" align="right"><h4>Search Student</h4></div>
+                            <div class="col-lg-8">
+                                <div class="input-group">
+                                    <input type="text" id="studentId" name="studentId" class="form-control" placeholder="Enter Student Id">
+                                    <span class="input-group-btn">
+					        	<button class="btn btn-info" type="button" onclick="funSearchStudent()">Go!</button>
+					      	</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row" id="divStudentInfo" style="margin: 0px">
+
+                        </div>
+
+                        <div class="row" id="divExistingwaiver" style="margin: 0px">
+
+                        </div>
+
+                        <div id="successMessage" align="center" class="hidden alert alert-success"></div>
+                        <div id="errorMessage" class="alert-danger" style="display: none;"></div>
+
+                        <div class="row" id="divPaymentInfo" style="margin: 0px">
+
+                        </div>
+                    </fieldset>
+                </div>
+                <div class="col-xs-12 col-sm-12 col-md-12">
+                    <form id="frmPayment" class="well">
+
+
+                        <fieldset>
+
+                            <!-- Button -->
+                            <div class="form-group d-flex justify-content-center">
+                                <label class="col-md-4 control-label" for="submit"></label>
+                                <div class="col-md-6">
+                                    <input id="btnClear" type="button" name="btnClear" value="Clear Form" class="btn btn-warning" />
+                                    <button id="submit" name="submit" class="btn btn-primary">Save Data</button>
+                                </div>
+                            </div>
+
+
+                        </fieldset>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="dialog-confirm" title="Are you sure you want to inactive this?" style="display:none;">
+        <p><span class="ui-icon ui-icon-alert" style="float:left; margin:12px 12px 20px 0;"></span>This waiver criteria will be deactivated. Are you sure?</p>
+    </div>
+</div>
+
+<div th:replace="fragment/footer.html :: footer_rel"></div>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+
+</body>
+</html>

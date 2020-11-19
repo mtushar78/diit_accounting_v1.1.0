@@ -1,0 +1,283 @@
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <!--    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>-->
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+</head>
+<body>
+
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<style>
+    .ui-datepicker-calendar {
+        display: none;
+    }
+    @page {
+        size: 7in 9.25in;
+        margin: 27mm 16mm 27mm 16mm;
+    }
+
+    body {
+        background: rgb(204,204,204);
+    }
+    page {
+        background: white;
+        display: block;
+        margin: 0 auto;
+        margin-bottom: 0.5cm;
+        box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+    }
+    page[size="A4"] {
+        width: 21cm;
+        /* height: 29.7cm;
+         overflow: inherit; */
+    }
+    page[size="A4"][layout="portrait"] {
+        width: 29.7cm;
+        /* height: 21cm;
+         overflow: inherit; */
+    }
+    page[size="A3"] {
+        width: 29.7cm;
+        height: 42cm;
+    }
+    page[size="A3"][layout="portrait"] {
+        width: 42cm;
+        height: 29.7cm;
+    }
+    page[size="A5"] {
+        width: 14.8cm;
+        height: 21cm;
+    }
+    page[size="A5"][layout="portrait"] {
+        width: 21cm;
+        height: 14.8cm;
+    }
+    @media print {
+        body, page {
+            margin: 0;
+            box-shadow: 0;
+        }
+
+    }
+</style>
+
+<script>
+
+    var programList = [];
+    var batchList = [];
+    var studentInfoList = [];
+    var studentPayable = [];
+    var diitLogo = "/static/images/Diit_logo.png";
+    var currentYear = new Date().getFullYear();
+    //alert(currentYear);
+
+    $(document).ready(function(){
+        $('#monthYear').monthpicker({
+            pattern: 'yyyy-mm',
+            selectedYear: currentYear,
+            startYear: currentYear,
+            finalYear: currentYear + 4
+        });
+
+        funGenerateProgramCombo();
+        funGetAllBatch();
+
+
+
+    }); //End of $(document).ready
+
+
+    //Function for generating program combo
+    function funGenerateProgramCombo(){
+
+        //Getting All Programs from database
+        $.post("getAllPrograms",function(data){
+
+            var combo = '<select id="programId" name="programId" class="form-control" onchange="funGenerateBatchCombo()"><option value="null">Select Program</option>';
+
+            for ( var key in data) {
+
+                var element = {id:[],programName:[],semesters:[],durationMonths:[]};
+                element["id"]  = data[key].id;
+                element["programName"]  = data[key].programName;
+                element["semesters"] = data[key].semesters;
+                element["durationMonths"]  = data[key].durationMonths;
+
+                programList.push(element);
+                combo += '<option value="' + data[key].id+ '">' + data[key].programName + '</option>';
+            }
+
+            combo += '</select>';
+            $("#divProgramList").html(combo);
+        });	 // End Post method program list
+    }
+
+    // function for employee search by department
+    function funGenerateBatchCombo(){
+
+        filteredBatchs = [];
+        //$("#hsccgpaSchemeId").val("");
+
+        var combo = '<select id="fkProgramBatchId" name="fkProgramBatchId" class="form-control" ><option value="null">Select Batch</option>';
+
+        var data = $.grep( batchList, function( n, i ) {
+            return $.trim(n.programId) === $.trim($("#programId").val());
+        });
+
+        for ( var key in data) {
+
+            combo += '<option value="' + data[key].id+ '">' + data[key].batchNo + '</option>';
+        }
+
+        combo += '</select>';
+        $("#divBatchList").html(combo);
+    }
+
+
+    //Function for generating program batch json list
+    function funGetAllBatch(){
+
+        //request sent to ProgramBatchsController
+        $.post("getAllProgramBatchs",function(data){
+
+            for(key in data){
+
+                var element = {id:[],programId:[],batchNo:[]};
+
+                element["id"] = data[key].id;
+                element["programId"] = data[key].programs.id;
+                element["batchNo"] = data[key].batchno;
+
+                batchList.push(element);
+            }
+        });
+    }
+
+    function funGenerateReport(){
+        var batchId = $("#fkProgramBatchId").val();
+        $("#divloader").css("display", "block");
+        if(batchId === undefined){
+            alert("Please select a program");
+            $("#divloader").css("display", "none");
+            return false;
+
+        } else if(batchId == 'null'){
+            alert("Please select a batch");
+            $("#divloader").css("display", "none");
+            return false;
+        } else{
+
+            //Request sent to vwStudentPaymentInfoController
+            $.post("getbatchwiseledger",{batchId: batchId}, function(data){
+                var totalPayable = 0;
+                var totalPaid = 0;
+                var totalWaived = 0;
+                var reportData = '<div class="form-group" align="center" style="margin-right:25px; ">'
+                    + '<img src="' + diitLogo + '" width="150" height="60">'
+                    + '<h4 style="width: 350px; border-bottom:1px solid #000; margin-top:20px; font-style:italic;" align="center">Batch Wise Ledger</h4>'
+                    + '<h5 style="width: 350px; margin:10px 0 20px 0; font-style:italic;" align="center">' + $("#programId option:selected").text() + ', Batch No: ' + $("#fkProgramBatchId option:selected").text()+ '</h5>'
+                    + '</div><div class="form-group">';
+
+
+                for(var key in data){
+
+                    if(parseInt(key) < 1){
+
+                        reportData += '<table cellpadding="1" cellspacing="1" class="table" style="width:750px; border: 1px solid #ddd;font-size: 12px; margin: 10px 0 0 20px;">'
+                            + '<tr>'
+                            + '<td style="width:120px;"><b>Student ID</b></td>'
+                            + '<td style="width:200px;"><b>Student Name</b></td>'
+                            + '<td style="width:100px;" align="right"><b>Payable Amount</b></td>'
+                            + '<td style="width:100px;" align="right"><b>Waived Amount</b></td>'
+                            + '<td style="width:100px;" align="right"><b>Paid Amount</b></td>'
+                            + '<td style="width:100px;" align="right"><b>Due Total</b></td></tr>';
+                        //+ '<tr><td> ' + data[key].payableStudent + "</td><td>" + data[key].name + ' </td><td> ' + data[key].payabelAmount + ' </td><td>' + data[key].discountedAmount + '</td><td>' + data[key].paidAmount + '</td><td></td></tr>';
+
+                    } //else {
+
+                    reportData += '<tr><td> ' + data[key].payableStudent + "</td><td>" + data[key].name + ' </td><td align="right"> ' + data[key].payabelAmount + ' </td><td align="right">' + data[key].discountedAmount + '</td><td align="right">' + data[key].paidAmount + '</td><td align="right">' + (data[key].payabelAmount - (data[key].paidAmount + data[key].discountedAmount)) + '</td></tr>';
+                    //}
+                    totalPayable += data[key].payabelAmount;
+                    totalPaid += data[key].paidAmount;
+                    totalWaived += data[key].discountedAmount;
+                }
+
+
+                reportData += '<tr><td></td><td><b>Total</b></td><td align="right"><b>' +  totalPayable + ' </b></td><td align="right"><b>' + totalWaived + '</b></td><td align="right"><b>' + totalPaid + '</b></td><td align="right"><b>' + (totalPayable - (totalPaid + totalWaived)) + '</b></td></tr></table></div>';
+
+                $("#divReport").html(reportData);
+
+                $("#printReport").css("display", "inline");
+                $("#backButton").css("display","inline");
+                $("#divReportParent").css("display", "none");
+                $("#divloader").css("display", "none");
+
+
+            });
+
+        } // End of Condition
+
+    }
+
+    function printReport(){
+        $("#divReportParent").css("display","none");
+        $("#printReport").css("display","none");
+        $("#backButton").css("display","none");
+        window.print();
+        $("#backButton").css("display","inline");
+        $("#printReport").css("display","inline");
+    }
+
+    function goBack(){
+        $("#divReportParent").css("display","inline");
+        $("#backButton").css("display","none");
+        $("#printReport").css("display","inline");
+    }
+</script>
+
+<page size="A4">
+    <div class="container-fluid">
+        <div class="row" id="divReportParent">
+
+                <div class="row" style="margin-top: 20px; width: 100%" >
+                    <div class="col-12 form-group required" style="margin-left: 15px;margin-top: 15px;">
+                        <label class="control-label requiredField" style="font-weight: bold" >Program</label>
+                        <div class="form-group" id="divProgramList"></div>
+                        <label class="control-label requiredField" style="font-weight: bold" >Batch</label>
+                        <div class="form-group" id="divBatchList"align="center"></div>
+                        <!-- label class="control-label requiredField" for="monthYear">Month/Year</label>
+                        <div class="form-group" id="divBatchList"><input id="monthYear" name="monthYear" class="form-control" type="text" value="" /> </div-->
+                        <div class="form-group" align="center">
+                            <div class="d-flex justify-content-center">
+                                <input id="btnClear" style="float: left" type="button" name="btnClear" value="Generate Report" class="btn btn-info" onclick="funGenerateReport()" />
+                                <img id="divloader" style="display: none; float: left; height: 16px; padding-top: 0px; margin-top: 10px; margin-left: 5px;" src="/static/images/ajaxloader.gif" th:src="@{/images/ajaxloader.gif}">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+
+        </div>
+        <p><a href="javascript:void(0)" id="printReport" style="display:none; margin-left: 30px;" onclick=" printReport()">Print Report</a></p>
+        <p><a href="javascript:void(0)" id="backButton" style="display:none; margin-left: 30px;" onclick="goBack()">Back</a></p>
+        <div class="row">
+            <div class="form-group" id="divReport"></div>
+        </div>
+    </div>
+</page>
+
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+</body>
+</html>

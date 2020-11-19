@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
+</head>
+<body>
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<script type="text/javascript">
+
+    /*function getTimePicker(){
+        $( "#dateOfBirth" ).datepicker({
+            dateFormat: 'yy-mm-dd',
+            changeMonth: true,
+            changeYear: true
+        });
+
+        alert("testing");
+    }*/
+    $(document).ready(function () {
+        $("#dateOfBirth").datepicker();
+    });
+    $(document).ready(function () {
+        $("#admissionDate").datepicker({
+            dateFormat: 'yy-mm-dd',
+            changeMonth: true,
+            changeYear: true
+        });
+    });
+
+
+    var programList = [];
+    var batchList = [];
+    var cgpaSchemeList = [];
+    var batchWiseCgpaSchemeList = [];
+    var studentInfoJson = [];
+    var currentYear = new Date().getFullYear();
+
+
+    $(document).ready(function () {
+
+        $('#efectedFrom').monthpicker({
+            pattern: 'yyyy-mm',
+            selectedYear: currentYear,
+            startYear: currentYear,
+            finalYear: currentYear + 4
+        });
+
+
+        funGenerateProgramCombo();
+        funGetAllBatch();
+        funGetAllCgpaScheme();
+
+
+        //only cgpa type valu allowd
+        $('#ssccgpa,#hsccgpa').keypress(function (event) {
+            var $this = $(this);
+
+            if ((event.which != 46 || $this.val().indexOf('.') != -1) &&
+                ((event.which < 48 || event.which > 57) &&
+                    (event.which != 0 && event.which != 8))) {
+                event.preventDefault();
+            }
+
+            var text = $(this).val();
+            if ((event.which == 46) && (text.indexOf('.') == -1)) {
+
+                setTimeout(function () {
+                    if ($this.val().substring($this.val().indexOf('.')).length > 3) {
+                        $this.val($this.val().substring(0, $this.val().indexOf('.') + 3));
+                    }
+                }, 1);
+            }
+
+            if ((text.indexOf('.') != -1) &&
+                (text.substring(text.indexOf('.')).length > 2) &&
+                (event.which != 0 && event.which != 8) &&
+                ($(this)[0].selectionStart >= text.length - 2)) {
+                event.preventDefault();
+            }
+
+        });
+
+
+        //Change event for golden in ssc
+        $('#goldenSSC').change(function () {
+
+            if ($.trim($("#hsccgpa").val()) != "") {
+                $("#hsccgpa").blur();
+            }
+
+        });
+
+
+        //Change event for golden in hsc
+        $('#goldenHSC').change(function () {
+            if ($.trim($("#hsccgpa").val()) != "") {
+                $("#hsccgpa").blur();
+            }
+        });
+
+
+        //SSC CGPA focusout event
+        $("#ssccgpa").blur(function (event) {
+
+            if ($(this).val() > 5) {
+                alert("You Can't enter more then 5");
+                $(this).val("5.00");
+                $("#ssccgpa").focus();
+            }
+
+            if ($.trim($("#hsccgpa").val()) != "") {
+                $("#hsccgpa").blur();
+            }
+
+        });
+
+
+        //HSC CGPA focusout event
+        $("#hsccgpa").blur(function () {
+
+            var cgpa = parseFloat($(this).val());
+
+            if (cgpa > 5) {
+
+                alert("You Can't enter more then 5");
+                $(this).val("5.00");
+                $("#ssccgpa").focus();
+
+            } else {
+
+                var cgpaSchemeId = funGetCGPAScheme(cgpa);
+                $("#hsccgpaSchemeId").val(cgpaSchemeId);
+
+
+                //Mapping to ProgramBatchController
+                $.post("getbatchfeesbyscheme", {
+                    batchId: $("#fkProgramBatchId").val(),
+                    cgpaSchemeId: cgpaSchemeId
+                }, function (data) {
+
+                    $("#divPaymentInfo").html("");
+                    var tblPaymentInfo = '<h4 align="center">Fees List</h4><table id="tblPaymentInfo" class="table table-bordered" style="background-color: white;"><tr><th class="hidden">Head ID</th><th>Payment Head</th><th>Amount</th><th>Pay Times</th></tr>';
+
+                    for (var key in data) {
+                        tblPaymentInfo += '<tr><td class="hidden">' + data[key].paymentHeadId
+                            + '</td><td>' + data[key].headName
+                            + '</td><td>' + data[key].amount
+                            + '</td><td>' + data[key].payTimes
+                            + '</td></tr>';
+                    }
+
+                    tblPaymentInfo += '</table>';
+
+                    $("#divPaymentInfo").html(tblPaymentInfo);
+
+                }); //End of post() method
+            } // End if condition
+        }); // End of HSC CGPA focusout event
+
+
+        // function for validating form before submit
+        function validator() {
+
+            var name = $.trim($("#name").val());
+            var fathersName = $.trim($("#fathersName").val());
+            var dateOfBirth = $.trim($("#dateOfBirth").val());
+            var contactNo = $.trim($("#contactNo").val());
+            var hsccgpa = $.trim($("#hsccgpa").val());
+            var startingSemesterNo = $.trim($("#startingSemesterNo").val());
+            var studentId = $.trim($("#studentId").val());
+            var admissionDate = $.trim($("#admissionDate").val());
+            var effectFrom = $.trim($("#efectedFrom").val());
+
+            if (name == "null") {
+                $("#errorMessage").html("!! Please enter student name");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (fathersName == "") {
+                $("#errorMessage").html("!! Please enter student's father name");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (dateOfBirth == "") {
+                $("#errorMessage").html("!! Please enter date of birth");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (contactNo == "") {
+                $("#errorMessage").html("!! Please enter student contact no");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (hsccgpa == "") {
+                $("#errorMessage").html("!! Please enter HSC CGPA");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (studentId == "") {
+                $("#errorMessage").html("!! Please enter student id");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (admissionDate == "") {
+                $("#errorMessage").html("!! Please enter admission date");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (startingSemesterNo == "") {
+                $("#errorMessage").html("!! Please enter which semester student is enrolling");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (fkProgramBatchId == "null") {
+                $("#errorMessage").html("!! Please select a program and batch no");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+
+            } else if (effectFrom == "") {
+                $("#errorMessage").html("!! Please enter effect from");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+            }
+
+            return true;
+        }
+
+
+        /* Submitting form to controller*/
+        $("#submit").click(function (event) {
+
+            event.preventDefault();
+
+            if (validator()) {
+
+                var data = {};
+                var hsccgpaSchemeId = $.trim($("#hsccgpaSchemeId").val());
+                var studentInfo = [];
+                var bloodGroup = null;
+
+                if ($.trim($("#bloodGroup").val()) != 'null') {
+                    bloodGroup = $.trim($("#bloodGroup").val());
+                }
+
+                var sscCgpa = 0;
+                var hscCgpa = 0;
+
+                if ($('#goldenSSC').prop('checked') && $('#ssccgpa').val() > 4.99) {
+                    sscCgpa = 6;
+                } else {
+                    sscCgpa = $("#ssccgpa").val();
+                }
+
+                if ($('#goldenHSC').prop('checked') && $('#hsccgpa').val() > 4.99) {
+                    hscCgpa = 6;
+                } else {
+                    hscCgpa = $('#hsccgpa').val();
+                }
+
+                if (sscCgpa == 6 && hscCgpa == 6) {
+                    hscCgpa = 6.00;
+                }
+
+
+                var element = {
+                    studentId: [],
+                    admissionDate: [],
+                    fkProgramBatchId: [],
+                    ssccgpa: [],
+                    hsccgpa: [],
+                    startingSemesterNo: [],
+                    activationStatus: [],
+                    efectedFrom: []
+                };
+                element["studentId"] = $.trim($("#studentId").val());
+                element["admissionDate"] = $.trim($("#admissionDate").val());
+                element["fkProgramBatchId"] = $.trim($("#fkProgramBatchId").val());
+                element["ssccgpa"] = $.trim(sscCgpa);
+                element["hsccgpa"] = $.trim(hscCgpa);
+                element["startingSemesterNo"] = $.trim($("#startingSemesterNo").val());
+                element["activationStatus"] = $.trim($("#activationStatus").val());
+                element["efectedFrom"] = $.trim($("#efectedFrom").val());
+
+                studentInfo.push(element);
+
+                data["name"] = $.trim($("#name").val());
+                data["fathersName"] = $.trim($("#fathersName").val());
+                data["dateOfBirth"] = $.trim($("#dateOfBirth").val());
+                data["contactNo"] = $.trim($("#contactNo").val());
+                data["mothersName"] = $.trim($("#mothersName").val());
+                data["nid"] = $.trim($("#nid").val());
+                data["bloodGroup"] = bloodGroup;
+                data["studentInfos"] = studentInfo;
+
+
+                $.ajax({
+                    type: "POST",
+                    url: "savepersoninfo/" + hsccgpaSchemeId + "/" + $("#tmpPersonId").val(),
+                    data: JSON.stringify(data),
+                    contentType: "application/json; charset=utf-8",
+                    success: function (data) {
+
+
+                        $("#submit").prop("disabled", false);
+                        $("#successMessage").html(data);
+                        $("#successMessage").removeClass("hidden");
+                        $("#errorMessage").addClass("hidden");
+
+                        funResetForm();
+                        $("#tmpPersonId").val(0);
+                        $("#divPaymentInfo").html("");
+
+                    },
+                    error: function (e) {
+                        $("#errorMessage").html("Error: Record Not Saved");
+                        $("#errorMessage").removeClass("hidden");
+                        $("#submit").prop("disabled", false);
+                        alert(JSON.stringify(e));
+                    }
+                });
+
+            } // End of validation
+        }); // End of form submission
+
+    }); // End of (document).ready() function
+
+
+    //Function for generating program combo
+    function funGenerateProgramCombo() {
+
+        //Getting All Programs from database
+        $.post("getAllPrograms", function (data) {
+
+            var combo = '<select id="programId" name="programId" class="form-control" onchange="funGenerateBatchCombo()"><option value="null">Select Program</option>';
+
+            for (var key in data) {
+
+                var element = {id: [], programName: [], semesters: [], durationMonths: []};
+                element["id"] = data[key].id;
+                element["programName"] = data[key].programName;
+                element["semesters"] = data[key].semesters;
+                element["durationMonths"] = data[key].durationMonths;
+
+                programList.push(element);
+                combo += '<option value="' + data[key].id + '">' + data[key].programName + '</option>';
+            }
+
+            combo += '</select>';
+            $("#divProgramList").html(combo);
+        });	 // End Post method program list
+    }
+
+
+    //Function for generating program batch json list
+    function funGetAllBatch() {
+
+        //Request sent to ProgramBatchsController
+        $.post("getAllProgramBatchs", function (data) {
+
+            for (key in data) {
+
+                var element = {id: [], programId: [], batchNo: [], startFrom: []};
+
+                element["id"] = data[key].id;
+                element["programId"] = data[key].programs.id;
+                element["batchNo"] = data[key].batchno;
+                element["startFrom"] = data[key].startFrom;
+
+                batchList.push(element);
+            }
+        });
+    }
+
+
+    // Function for generating HSC CGPA scheme json list
+    function funGetAllCgpaScheme() {
+
+        $.post("getallcgpascheme", function (data) {
+
+            cgpaSchemeList = [];
+
+            for (var key in data) {
+
+                var element = {id: [], lowestValue: [], hieghtValue: []};
+                element["id"] = data[key].id;
+                element["lowestValue"] = data[key].lowestValue;
+                element["hieghtValue"] = data[key].hieghtValue;
+
+                cgpaSchemeList.push(element);
+            }
+        });
+    }
+
+
+    // function for generating batch combo
+    function funGenerateBatchCombo() {
+
+        filteredBatchs = [];
+        $("#hsccgpaSchemeId").val("");
+
+        var combo = '<select id="fkProgramBatchId" name="fkProgramBatchId" class="form-control" onchange="funEnableCGPATextBox()"><option value="null">Select Batch</option>';
+
+        var data = $.grep(batchList, function (n, i) {
+            return $.trim(n.programId) === $.trim($("#programId").val());
+        });
+
+        for (var key in data) {
+
+            combo += '<option value="' + data[key].id + '">' + data[key].batchNo + '</option>';
+        }
+
+        combo += '</select>';
+        $("#divBatchList").html(combo);
+    }
+
+
+    //Function for enabling some text boxs
+    function funEnableCGPATextBox() {
+
+        if ($.trim($("#fkProgramBatchId").val()) == "null") {
+
+            $("#hsccgpa").val("");
+            $("#hsccgpa").attr('disabled', 'disabled');
+
+        } else {
+
+            $("#hsccgpa").removeAttr("disabled");
+            if ($.trim($("#hsccgpa").val()) != "") {
+                $("#hsccgpa").blur();
+            }
+
+            $.each(batchList, function (i, v) {
+                if (v.id == $("#fkProgramBatchId").val()) {
+
+                    $("#efectedFrom").val(v.startFrom);
+
+                    return;
+                }
+            });
+
+            funGetCGPASchemeByProgramBatch($("#fkProgramBatchId").val());
+        }
+    }
+
+
+    //Function for searching a single student
+    function funSearchStudent() {
+        //Request sending to PersonInfosDao
+
+        $.post("getpersonwisestudent", {studentId: $("#studentIdSearch").val()}, function (data) {
+
+
+            var resultData = '';
+            studentInfoJson = [];
+
+            for (var key in data) {
+
+                var tmpSscCgpa = data[key].ssccgpa;
+                var tmpHscCgpa = data[key].hsccgpa;
+                funGetCGPASchemeByProgramBatch(data[key].fkProgramBatchId);
+
+                if (data[key].ssccgpa > 5) {
+                    tmpSscCgpa = '5 (G)';
+                } else {
+                    tmpSscCgpa = data[key].ssccgpa;
+                }
+
+                if (data[key].hsccgpa > 5) {
+                    tmpHscCgpa = '5 (G)';
+                } else {
+                    tmpHscCgpa = data[key].hsccgpa;
+                }
+
+                var element = {
+                    personId: [],
+                    name: [],
+                    fathersName: [],
+                    mothersName: [],
+                    dateOfBirth: [],
+                    nid: [],
+                    bloodGroup: [],
+                    contactNo: [],
+                    id: [],
+                    studentId: [],
+                    ssccgpa: [],
+                    hsccgpa: [],
+                    fkProgramId: [],
+                    fkProgramBatchId: [],
+                    activationStatus: [],
+                    admissionDate: [],
+                    startingSemesterNo: []
+                };
+
+                element["personId"] = data[key].fkPersonId;
+                element["name"] = data[key].name;
+                element["fathersName"] = data[key].fathersName;
+                element["mothersName"] = data[key].mothersName;
+                element["dateOfBirth"] = data[key].dateOfBirth;
+                element["nid"] = data[key].nid;
+                element["bloodGroup"] = data[key].bloodGroup;
+                element["contactNo"] = data[key].contactNo;
+
+                element["id"] = data[key].id;
+                element["studentId"] = data[key].studentId;
+                element["ssccgpa"] = data[key].ssccgpa;
+                element["hsccgpa"] = data[key].hsccgpa;
+                element["fkProgramId"] = data[key].fkProgramId;
+                element["fkProgramBatchId"] = data[key].fkProgramBatchId;
+                element["activationStatus"] = data[key].activationStatus;
+                element["admissionDate"] = data[key].admissionDate;
+                element["startingSemesterNo"] = data[key].startingSemesterNo;
+
+                studentInfoJson.push(element);
+
+
+                if (parseInt(key) < 1) {
+                    resultData = '<table cellpadding="1" cellspacing="1" class="table" style="border: 1px solid #ddd;">'
+                        + '<tr>'
+                        + '<td style="width:100px;"><b>Name</b></td><td style="width:10px;">:</td>'
+                        + '<td colspan="4" align="left">' + data[key].name + '</td></tr>'
+                        + '<tr>'
+                        + '<td><b>Father</b></td><td style="width:10px;">:</td>'
+                        + '<td style="width:250px;" align="left">' + data[key].fathersName + '</td>'
+                        + '<td style="width:80px;"><b>Mother</b></td><td style="width:10px;">:</td>'
+                        + '<td>' + data[key].mothersName + '</td></tr>'
+                        + '<tr>'
+                        + '<td><b>Birth Date</b></td><td>:</td>'
+                        + '<td>' + data[key].dateOfBirth + '</td>'
+                        + '<td><b>NID</b></td><td>:</td>'
+                        + '<td>' + data[key].nid + '</td></tr>'
+                        + '<tr>'
+                        + '<td><b>Contact No</b></td><td>:</td>'
+                        + '<td>' + data[key].contactNo + '</td>'
+                        + '<td><b>Blood Group</b></td><td>:</td>'
+                        + '<td>' + data[key].bloodGroup + '</td></tr>'
+                        + '</table><table class="table" cellpadding="1" cellspacing="1" style="border: 1px solid #ddd;">'
+                        + '<tr>'
+                        + '<th></th>'
+                        + '<th>ID</th>'
+                        + '<th>Admission Date</th>'
+                        + '<th>Program</th>'
+                        + '<th>Batch</th>'
+                        + '<th>SSC Result</th>'
+                        + '<th>HSC Result</th>'
+                        + '<th style="display:none;">Start Semester</th>'
+                        + '<th style="display:none;">Status</th>	'
+                        + '</tr>'
+                        + '<tr>'
+                        + '<td><input id="student_' + data[key].studentId + '" type="radio" name="student" value="' + data[key].studentId + '"></td>'
+                        + '<td>' + data[key].studentId + '</td>'
+                        + '<td>' + data[key].admissionDate + '</td>'
+                        + '<td>' + data[key].programName + '</td>'
+                        + '<td>' + data[key].batchno + '</td>'
+                        + '<td>' + tmpSscCgpa + '</td>'
+                        + '<td>' + tmpHscCgpa + '</td>'
+                        + '<td style="display:none;">' + data[key].startingSemesterNo + '</td>'
+                        + '<td style="display:none;">' + data[key].activationStatus + '</td>	'
+                        + '</tr>';
+
+
+                } else {
+                    resultData += '<tr>'
+                        + '<td><input id="student_' + data[key].studentId + '" type="radio" name="student" value="' + data[key].studentId + '"></td>'
+                        + '<td>' + data[key].studentId + '</td>'
+                        + '<td>' + data[key].admissionDate + '</td>'
+                        + '<td>' + data[key].programName + '</td>'
+                        + '<td>' + data[key].batchno + '</td>'
+                        + '<td>' + tmpSscCgpa + '</td>'
+                        + '<td>' + tmpHscCgpa + '</td>'
+                        + '<td style="display:none;">' + data[key].startingSemesterNo + '</td>'
+                        + '<td style="display:none;">' + data[key].activationStatus + '</td>	'
+                        + '</tr>';
+                }
+            }
+
+            resultData += '</table><div class="form-group" align="center" style=" font-size:13px; font-weight:bold;"><a href="javascript:void(0);" onclick="funPopulateExistingData()">Edit Existing Data</a>&nbsp;&nbsp;&nbsp;&nbsp;<a href="javascript:void(0);" onclick="funPopulatePersonInfo()">Add New Student ID</a></div>';
+            $("#divStudentInfo").html(resultData);
+
+        });
+    }
+
+
+    //Click event on Edit existing data
+    function funPopulateExistingData() {
+
+        var sscCgpa = 0;
+        var hscCgpa = 0;
+
+        var selectedStudent = $('input[name=student]:checked').val();
+        alert(selectedStudent);
+        $.each(studentInfoJson, function (i, v) {
+            if (v.studentId == $.trim(selectedStudent)) {
+
+                if (v.ssccgpa > 5) {
+                    sscCgpa = 5;
+                    $("#goldenSSC").prop('checked', true);
+                } else {
+                    sscCgpa = v.ssccgpa;
+                    $("#goldenSSC").prop('checked', false);
+                }
+
+                if (v.hsccgpa > 5) {
+                    hscCgpa = 5;
+                    $("#goldenHSC").prop('checked', true);
+                } else {
+                    hscCgpa = v.hsccgpa;
+                    $("#goldenHSC").prop('checked', false);
+                }
+
+                //funGetCGPASchemeByProgramBatch(v.fkProgramBatchId);
+
+                $("#tmpPersonId").val(v.personId);
+                $("#studentId").val(v.studentId);
+                $("#admissionDate").val(v.admissionDate);
+                $("#programId").val(v.fkProgramId);
+                funGenerateBatchCombo();
+                $("#fkProgramBatchId").val(v.fkProgramBatchId);
+                funEnableCGPATextBox();
+                $("#ssccgpa").val(sscCgpa);
+                $("#hsccgpa").val(hscCgpa);
+                $("#startingSemesterNo").val(v.startingSemesterNo);
+                $("#activationStatus").val(v.activationStatus);
+                $("#name").val(v.name);
+                $("#fathersName").val(v.fathersName);
+                $("#dateOfBirth").val(v.dateOfBirth);
+                $("#contactNo").val(v.contactNo);
+                $("#mothersName").val(v.mothersName);
+                $("#nid").val(v.nid);
+                $("#bloodGroup").val(v.bloodGroup);
+                $("#hsccgpa").blur();
+
+                return;
+            }
+        });
+    }
+
+
+    function funPopulatePersonInfo() {
+
+        $("#tmpPersonId").val(studentInfoJson[0].personId);
+        $("#name").val(studentInfoJson[0].name);
+        $("#fathersName").val(studentInfoJson[0].fathersName);
+        $("#dateOfBirth").val(studentInfoJson[0].dateOfBirth);
+        $("#contactNo").val(studentInfoJson[0].contactNo);
+        $("#mothersName").val(studentInfoJson[0].mothersName);
+        $("#nid").val(studentInfoJson[0].nid);
+        $("#bloodGroup").val(studentInfoJson[0].bloodGroup);
+        $("#divPaymentInfo").html("");
+
+        $("#studentId").val("");
+        $("#admissionDate").val("");
+        $("#programId").val("null");
+        funGenerateBatchCombo();
+        $("#fkProgramBatchId").val("null");
+        $("#ssccgpa").val("");
+        $("#hsccgpa").val("");
+        $("#startingSemesterNo").val("");
+        $("#activationStatus").val("");
+        $("#hsccgpaSchemeId").val("");
+        $("#goldenSSC").prop('checked', false);
+        $("#goldenHSC").prop('checked', false);
+    }
+
+
+    function funGetCGPAScheme(cgpa) {
+
+        var cgpaSchemeId = '';
+        var sscCgpa = 0;
+        var hscCgpa = 0;
+
+        if ($('#goldenSSC').prop('checked') && $('#ssccgpa').val() > 4.99) {
+            sscCgpa = 6;
+        } else {
+            sscCgpa = $("#ssccgpa").val();
+        }
+
+        if ($('#goldenHSC').prop('checked') && $('#hsccgpa').val() > 4.99) {
+            hscCgpa = 6;
+        } else {
+            hscCgpa = cgpa;
+        }
+
+        if (sscCgpa == 6 && hscCgpa == 6) {
+            cgpa = 6.00;
+        }
+
+
+        //$.each(cgpaSchemeList, function(i, v) {
+        $.each(batchWiseCgpaSchemeList, function (i, v) {
+
+            if (cgpa >= v.lowestValue && cgpa <= v.hieghtValue) {
+
+                cgpaSchemeId = v.id;
+
+                return;
+            }
+        });
+
+        return cgpaSchemeId;
+    }
+
+
+    function funResetForm() {
+        $('#frmStudentInfo').trigger("reset");
+    }
+
+
+    function funGetCGPASchemeByProgramBatch(paramProgramBatchId) {
+
+        //alert(paramProgramBatchId);
+
+        $.post("getCGPASchemeByProgramBatch", {programBatchId: paramProgramBatchId}, function (data) {
+
+            //alert(JSON.stringify(data));
+
+            batchWiseCgpaSchemeList = [];
+
+            for (var key in data) {
+
+                var element = {id: [], lowestValue: [], hieghtValue: []};
+                element["id"] = data[key].id;
+                element["lowestValue"] = data[key].lowestValue;
+                element["hieghtValue"] = data[key].hieghtValue;
+
+                batchWiseCgpaSchemeList.push(element);
+            }
+        });
+    }
+
+</script>
+
+<div class="common">
+    <div class="bootstrap-iso">
+        <div class="container-fluid">
+            <div class="row">
+
+                <div class="col-xs-12 col-md-6 shadow p-3 mb-5 bg-white rounded" style="margin-top:20px">
+                    <fieldset>
+                        <div class="row alert alert-info" style="magin-top:0px; margin-left: 0px; margin-right: 0px; height: 61px">
+                            <div class="col-lg-4" align="left"><h6>Search Student</h6></div>
+                            <div class="col-lg-8">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="studentIdSearch" placeholder="Enter Student Id" name="studentIdSearch" aria-label="Recipient's username" aria-describedby="button-addon2">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="funSearchStudent()">Go!</button>
+                                    </div>
+                                </div>
+                                <!--<div class="input-group">
+                                    <input type="text" id="studentIdSearch" name="studentIdSearch" class="form-control"
+                                           placeholder="Enter Student Id">
+                                    <span class="input-group-btn">
+					        	            <button class="btn btn-info" type="button" onclick="funSearchStudent()">Go!</button>
+					      	        </span>
+                                </div>-->
+                            </div>
+                        </div>
+                        <div class="row" id="divStudentInfo" style="margin-right: 00px; margin-left: 0px">
+
+                        </div>
+                    </fieldset>
+                </div>
+                <div class="col-xs-12 col-sm-6 col-md-6  shadow p-3 mb-5 bg-white rounded " style="margin-top: 20px;left: 20px;">
+                    <form id="frmStudentInfo" class="well">
+                        <fieldset>
+                            <legend class="alert alert-info">Personal Information</legend>
+                            <!-- Form Name -->
+                            <input class="hidden" id="tmpPersonId" name="tmpPersonId" type="text" value="0">
+
+                            <div id="successMessage" align="center" class="hidden alert alert-success"></div>
+                            <div id="errorMessage" align="center" class="hidden alert alert-danger"></div>
+
+
+                            <!-- Text input-->
+                            <!--<div class="form-group required">
+                                <label class="control-label requiredField" for="name">Full Name</label>
+                                <div class="form-group">
+                                    <input id="name" name="name" placeholder="Enter Full Name" class="form-control"
+                                           type="text" required="required">
+                                </div>
+                            </div>-->
+                            <div class="form-group">
+                                <label for="inputAddress" class="requiredField">Full Name</label>
+                                <input type="text" name="name" required="required" class="form-control input-sm"
+                                       id="inputAddress"
+                                       placeholder="Enter Full Name">
+                            </div>
+                            <div class="personInfo">
+                                <div class="row">
+                                    <div class="col">
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="fathersName">Father's
+                                                Name</label>
+                                            <input id="fathersName" name="fathersName" placeholder="Enter father's Name"
+                                                   class="form-control" type="text" required="required">
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <div class="form-group" id="marksVersion">
+                                            <label class="control-label requiredField" for="mothersName">Mother's
+                                                Name</label>
+                                            <input id="mothersName" name="mothersName" placeholder="Enter Mother's Name"
+                                                   class="form-control" type="text">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col">
+                                        <label class="control-label requiredField" for="formVersionNo">Date Of
+                                            Birth</label>
+                                        <input id="dateOfBirth" name="dateOfBirth"
+                                               placeholder="Select Date of Birth" class="form-control"
+                                               type="text" readonly="readonly" required="required">
+                                        <!-- <script>
+
+                                         </script>-->
+                                    </div>
+                                    <div class="col">
+                                        <div class="form-group" id="marksVersion">
+                                            <label class="control-label requiredField" for="nid">National ID</label>
+                                            <input id="nid" name="nid" placeholder="Enter National ID"
+                                                   class="form-control" type="text">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!--<div class="row">
+                                    <div class="col-xs-6">
+
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="fathersName">Father's
+                                                Name</label>
+                                            <input id="fathersName" name="fathersName" placeholder="Enter father's Name"
+                                                   class="form-control" type="text" required="required">
+                                        </div>
+                                    </div>
+                                    <div class="col-xs-6" style="margin-left: 185px">
+
+                                        <div class="form-group" id="marksVersion">
+                                            <label class="control-label requiredField" for="mothersName">Mother's
+                                                Name</label>
+                                            <input id="mothersName" name="mothersName" placeholder="Enter Mother's Name"
+                                                   class="form-control" type="text">
+                                        </div>
+                                    </div>
+                                </div>-->
+
+                                <!--<div class="row">
+                                    <div class="col-xs-6">
+
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="formVersionNo">Date Of
+                                                Birth</label>
+                                            <input id="dateOfBirth" name="dateOfBirth"
+                                                   placeholder="Select Date of Birth" class="form-control hasDatepicker"
+                                                   type="text" readonly="readonly" required="required">
+                                        </div>
+                                    </div>
+                                    <div class="col-xs-6">
+
+                                        <div class="form-group" id="marksVersion">
+                                            <label class="control-label requiredField" for="nid">National ID</label>
+                                            <input id="nid" name="nid" placeholder="Enter National ID"
+                                                   class="form-control" type="text">
+                                        </div>
+                                    </div>
+                                </div>-->
+
+                                <div class="row">
+                                    <div class="col">
+
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="contactNo">Contact
+                                                No</label>
+                                            <input id="contactNo" name="contactNo" placeholder="Enter Contact No"
+                                                   class="form-control" type="text">
+                                        </div>
+                                    </div>
+                                    <div class="col">
+
+                                        <div class="form-group" id="marksVersion">
+                                            <label class="control-label requiredField" for="bloodGroup">Blood
+                                                Group</label>
+                                            <select id="bloodGroup" name="bloodGroup" class="form-control">
+                                                <option value="null">Select Blood Group</option>
+                                                <option value="A+">A+</option>
+                                                <option value="A-">A-</option>
+                                                <option value="B+">B+</option>
+                                                <option value="B-">B-</option>
+                                                <option value="O+">O+</option>
+                                                <option value="O-">O-</option>
+                                                <option value="AB+">AB+</option>
+                                                <option value="AB-">AB-</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend class="alert alert-info">Academic Information</legend>
+
+                            <!-- Form Name -->
+                            <input class="hidden" id="tmpHeadId" name="tmpHeadId" type="text" value="0">
+
+
+                            <!-- Text input-->
+                            <div class="personInfo">
+                                <div class="row">
+                                    <div class="col">
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="studentId">Student
+                                                ID</label>
+                                            <input id="studentId" name="studentId" placeholder="Enter student ID"
+                                                   class="form-control" type="text" required="required">
+                                        </div>
+                                    </div>
+                                    <div class="col">
+
+                                        <div class="form-group required" id="marksVersion">
+                                            <label class="control-label requiredField" for="admissionDate">Admission
+                                                Date</label>
+                                            <input id="admissionDate" name="admissionDate"
+                                                   placeholder="Enter admission date" class="form-control"
+                                                   type="text" required="required" readonly="readonly">
+                                        </div>
+                                    </div>
+                                </div>
+
+
+                                <div class="row">
+                                    <div class="col form-group required">
+                                        <label class="control-label requiredField">Program</label>
+                                        <div class="form-group" id="divProgramList"><select id="programId"
+                                                                                            name="programId"
+                                                                                            class="form-control"
+                                                                                            onchange="funGenerateBatchCombo()">
+                                            <option value="null">Select Program</option>
+                                            <option value="1">Bachelor of Business Administration (BBA)</option>
+                                            <option value="2">Computer Science &amp; Engineering (CSE)-3</option>
+                                            <option value="3">MBA</option>
+                                            <option value="4">Textile</option>
+                                            <option value="5">BTHM</option>
+                                            <option value="6">Computer Science &amp; Engineering (CSE)</option>
+                                            <option value="7">BTHM</option>
+                                        </select></div>
+                                    </div>
+                                    <div class="col form-group required">
+                                        <label class="control-label requiredField">Batch</label>
+                                        <div class="form-group" id="divBatchList"></div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col">
+
+                                        <!--<div class="form-group required">
+
+                                            <div class="input-group">
+                                            <span class="input-group-addon">
+                                                <input id="goldenSSC" type="checkbox" aria-label="Golden?"> Check if Golden
+                                            </span>
+                                                <input id="ssccgpa" name="ssccgpa" placeholder="Enter SSC CGPA"
+                                                       class="form-control" type="text">
+                                            </div>
+                                        </div>-->
+
+                                        <label class="control-label requiredField" >SSC Result</label>
+                                        <div class="input-group mb-3">
+                                            <div class="input-group-prepend">
+                                                <div class="input-group-text" style="padding-top: 0px; padding-bottom: 0px;">
+                                                    <span class="input-group-addon ">
+							        	                <input id="goldenHSC" type="checkbox" aria-label="Golden?" >  Check if Golden
+							                    	</span>
+                                                </div>
+                                            </div>
+                                            <input id="ssccgpa" name="ssccgpa" placeholder="Enter SSC CGPA"
+                                                   class="form-control" type="text">
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <label class="control-label requiredField" for="hsccgpa">HSC Result</label>
+                                        <div class="input-group mb-3">
+                                            <div class="input-group-prepend" id="marksVersion">
+                                                <div class="input-group-text " style="padding-top: 0px; padding-bottom: 0px;">
+                                                    <span class="input-group-addon">
+							        	                <input id="goldenHSC" type="checkbox" aria-label="Golden?" >  Check if Golden
+							                    	</span>
+                                                </div>
+                                            </div>
+                                            <input id="hsccgpa" name="hsccgpa" placeholder="Enter HSC CGPA"
+                                                   class="form-control" type="text" disabled="disabled">
+                                        </div>
+
+                                        <!--<div class="form-group required" id="marksVersion">
+                                            <div class="input-group">
+							      	<span class="input-group-addon">
+							        	<input id="goldenHSC" type="checkbox" aria-label="Golden?"> Check if Golden
+							      	</span>
+                                                <input id="hsccgpa" name="hsccgpa" placeholder="Enter HSC CGPA"
+                                                       class="form-control" type="text" disabled="disabled">
+                                            </div>
+                                        </div>-->
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <input id="hsccgpaSchemeId" name="hsccgpaSchemeId" class="form-control hidden"
+                                           type="text" readonly="">
+                                </div>
+
+                                <div class="row" id="divPaymentInfo">
+
+                                </div>
+
+                                <div class="row">
+                                    <div class="col">
+
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="startingSemesterNo">Start
+                                                Semester NO</label>
+                                            <input id="startingSemesterNo" name="startingSemesterNo"
+                                                   placeholder="Enter starting semester no" class="form-control"
+                                                   type="text"
+                                                   value="1" required="required">
+                                        </div>
+                                    </div>
+                                    <div class="col">
+
+                                        <div class="form-group">
+                                            <label class="control-label requiredField" for="activationStatus">Activation
+                                                Status</label>
+                                            <select id="activationStatus" name="activationStatus" class="form-control">
+                                                <option value="1">Active</option>
+                                                <option value="0">Inactive</option>
+                                                <option value="2">Completed</option>
+                                                <option value="3">Drop Out</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col">
+
+                                        <div class="form-group required">
+                                            <label class="control-label requiredField" for="efectedFrom">Effected
+                                                From</label>
+                                            <input id="efectedFrom" name="efectedFrom"
+                                                   class="form-control mtz-monthpicker-widgetcontainer" type="text"
+                                                   value=""
+                                                   readonly="readonly" required="required">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Button -->
+                            <div class="form-group">
+                                <label class="col-md-4 control-label" for="submit"></label>
+                                <div class="col">
+                                    <div class="d-flex justify-content-center ">
+                                        <input id="btnClear" type="button" name="btnClear" value="Clear Form"
+                                               class="btn btn-warning mr-2" onclick="funResetForm()">
+                                        <button id="submit" name="submit" class="btn btn-primary">Save Data</button>
+                                    </div>
+
+                                </div>
+                            </div>
+
+
+                        </fieldset>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<div th:replace="fragment/footer.html :: footer_rel"></div>
+
+<!--<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
+        crossorigin="anonymous"></script>-->
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+</body>
+</html>

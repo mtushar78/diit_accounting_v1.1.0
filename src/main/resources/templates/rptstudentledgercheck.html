@@ -1,0 +1,230 @@
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <!--    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>-->
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+</head>
+<body>
+
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<style>
+    .shadow-item{
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+    }
+</style>
+<script type="text/javascript">
+
+    var diitLogo = "/static/images/Diit_logo.png";
+    var studentInfoList = [];
+    var curDate = funCurDate();
+    var progName;
+    var batchNo;
+    var studentName;
+    //alert(curDate);
+
+
+    $( function() {
+
+        $("#endDate").datepicker({
+            dateFormat: 'yy-mm-dd'
+        });
+    });
+
+
+    $(document).ready(function(){
+        $("#endDate").val(curDate);
+        funGetStudentInfoList();
+
+    }); // End of $(document).ready()
+
+
+    function funGetStudentLedger(studentId, endDate){
+        $("#divloader").css("display", "block");
+        //Request sent to VwStudentPaymentInfoController
+        var count = 0;
+        $.post("getstudentpaymentinfo",{studentId: studentId, endDate: endDate}, function(data){
+            var reportData = '<div align="right"><table cellpadding="1" cellspacing="1" style="margin:5px 10px 10px 0;">';
+            var paymentData = '';
+            var tmpYear = '';
+            var totPayable = 0;
+            var totPaid = 0;
+            var totWaived = 0;
+            var grandPayable = 0;
+            var grandPaid = 0;
+            var grandWaived = 0;
+            paymentData += '<table class="table" style="width:100%; border: 1px solid #ddd; font-size:20px;"><tr><td style="width:100px;" align="right"><b>Payable Amount</b></td><td style="width:90px;" align="right"><b>Paid Amount</b></td><td style="width:90px;" align="right"><b>Waived Amount</b></td><td align="center" style="width:120px;"><b>DUE Total</b></td></tr>';
+            for(var key in data){
+
+                var paidDate = '';
+                if($.trim( data[key].paidDate) != ''){ paidDate = data[key].paidDate }
+
+                if(count == 0){
+                    reportData += '<tr><td align="right"></td><td></td><td align="right">' + studentId + '</td></tr>'
+                        + '<tr><td align="right"></td><td></td><td align="right">' + studentName + '</td></tr>'
+                        + '<tr><td align="right"></td><td></td><td align="right">' + progName + '</td></tr>'
+                        + '<tr><td align="right"></td><td></td><td align="right">Batch (' + batchNo + ')</td></tr>';
+                    count = 1;
+                }
+
+                //Year wise grouping
+                if(tmpYear != data[key].payableMonth.substring(0,4)){
+
+                    if(parseInt(key) > 1){
+
+                        grandPayable += totPayable;
+                        grandPaid += totPaid;
+                        grandWaived += totWaived;
+
+                        //paymentData += '<tr><td> </td><td><b>SUB-TOTAL</b></td><td align="right"><b>' + totPayable + '</b></td><td align="right"><b>' + totPaid + '</b></td><td align="right"><b>' + totWaived + '</b></td><td><b>DUE ( ' + (totPayable - (totPaid + totWaived)) + ' )</b></td></tr></table>';
+                        //paymentData += '</table>';
+
+                        totPayable = 0;
+                        totPaid = 0;
+                        totWaived = 0;
+                    }
+
+                    /* paymentData += '<div class="form-group"><em class="h4">Payable Year: ' + data[key].payableMonth.substring(0,4) + '</em></div>'
+                        + '<table class="table" style="width:850px; border: 1px solid #ddd;"><tr><td style="width:120px;"><b>Payable Month/Year</b></td><td style="width:200px;"><b>Payable Head</b></td><td style="width:100px;" align="right"><b>Payable Amount</b></td><td style="width:90px;" align="right"><b>Paid Amount</b></td><td style="width:90px;" align="right"><b>Waived Amount</b></td><td align="center" style="width:120px;"><b>Paid Date</b></td></tr>'; */
+
+
+
+                    tmpYear = data[key].payableMonth.substring(0,4);
+
+                    totPayable += data[key].payable;
+                    totPaid += data[key].paidAmount;
+                    totWaived += data[key].payableWaiver;
+
+
+                } else {
+                    //paymentData += '<tr><td> ' + funGetMonthName(data[key].payableMonth.substring(5)) +", "+ data[key].payableMonth.substring(0,4) + ' </td><td> ' + data[key].headName + ' </td><td align="right">' + data[key].payable + '</td><td align="right">' + data[key].paidAmount + '</td><td align="right">' + data[key].payableWaiver + '</td><td align="center">' + paidDate.substring(0,10) + '</td></tr>';
+
+                    totPayable += data[key].payable;
+                    totPaid += data[key].paidAmount;
+                    totWaived += data[key].payableWaiver;
+                }
+            }
+
+            reportData += '</table></div>';
+
+            grandPayable += totPayable;
+            grandPaid += totPaid;
+            grandWaived += totWaived;
+
+            /* $("#reportData").html( reportData + paymentData + '<tr><td> </td><td><b>SUB-TOTAL</b></td><td align="right"><b>' + totPayable + '</b></td><td align="right"><b>' + totPaid + '</b></td><td align="right"><b>' + totWaived + '</b></td><td><b>DUE ( ' + (totPayable - (totPaid + totWaived)) + ' )</b></td></tr>'
+                    + '<tr><td> </td><td><b>GRAND TOTAL</b></td><td align="right"><b>' + grandPayable + '</b></td><td align="right"><b>' + grandPaid + '</b></td><td align="right"><b>' + grandWaived + '</b></td><td><b>DUE ( ' + (grandPayable - (grandPaid + grandWaived)) + ' )</b></td></tr></table></table>');
+            */
+            $("#reportData").html( reportData + paymentData + '<tr><td align="right"><b>' + grandPayable + '</b></td><td align="right"><b>' + grandPaid + '</b></td><td align="right"><b>' + grandWaived + '</b></td><td align="center" style="color:red;"><b>' + (grandPayable - (grandPaid + grandWaived)) + '</b></td></tr></table></table>');
+            $("#divloader").css("display", "none");
+        });
+    }
+
+
+    function funShowReport(){
+
+        var studentId = $("#studentId").val();
+        var endDate = $("#endDate").val();
+
+        getSingleStudentInfo(studentId);
+        if($.trim(studentId) == ''){
+
+            alert("Please enter a student id..");
+            return false;
+
+        } else if($.trim(endDate) == ""){
+
+            alert("Please enter a date..");
+            return false;
+
+        } else {
+            funGetStudentLedger(studentId, $.trim(endDate));
+        }
+
+    }
+
+    function getSingleStudentInfo(studentId) {
+        $.post("getsinglestudentinfo",{
+            "studentId":studentId
+        },function(data){
+            progName = data.programName;
+            studentName = data.name;
+            batchNo = data.batchno;
+            /* console.warn("res progName: ",progName);
+             console.warn("res studentName: ",studentName);
+             console.warn("res batchNo: ",batchNo);*/
+        });
+    }
+
+
+    function goBack(){
+        $("#divReportParent").css("display","inline");
+        $("#reportData").html("");
+        $("#studentId").val("");
+    }
+
+</script>
+<div class="container shadow-item" style="margin-top: 15px">
+    <div class="row" ></div>
+    <div id="divReportParent ">
+
+        <div class="row" style="width: 100%;margin-left: 0px;margin-right: 0px;">
+
+            <div class="form-group row" style="margin-top: 20px; padding:20px 20px 40px 30px;">
+                <h2 class="control-label text-warning" >Student Due Check</h2>
+            </div>
+
+            <div class="row d-flex justify-content-center" style="width: 100%;margin-left: 0px;margin-right: 0px;">
+
+                <div class="col-6">
+                    <div class="form-group required">
+                        <label class="control-label requiredField" >Student ID</label>
+                        <input type="text" id="studentId" name="studentId" class="form-control" placeholder="Enter Student Id">
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="form-group required">
+                        <label class="control-label requiredField" for="endDate">DUE Up to</label>
+                        <input id="endDate" name="endDate" class="form-control" type="text" readonly="readonly" required="required" />
+                    </div>
+                </div>
+
+            </div>
+            <div class="row d-flex justify-content-center" style="padding:10px 20px 0 30px; width: 100%">
+                <button class="btn btn-info" type="button" onclick="funShowReport()">Show Payment History</button>
+                <button class="btn btn-info" type="button" id="backButton" style="margin-left: 15px;" onclick="goBack()">Clear History</button>
+                <img id="divloader" style="display: none; float: left; height: 16px; padding-top: 0px; margin-top: 10px;
+                margin-left: 5px;" src="/static/images/ajaxloader.gif" th:src="@{/images/ajaxloader.gif}">
+            </div>
+
+        </div>
+
+        <div id="divEmployeeList"></div>
+
+        <div id="errorMessage" class=" hidden alert alert-danger" style="margin:10px;">
+
+        </div>
+
+        <div class="container-fluid" id="reportData">
+
+        </div>
+        <div>
+            <br><br>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+</body>
+</html>

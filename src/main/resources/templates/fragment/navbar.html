@@ -1,0 +1,57 @@
+<div th:fragment="nav">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <img th:src="@{/images/Diit_logo.png}" style="height: 30px; width: 57px">
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+                    aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="navbar-collapse collapse justify-content-end" id="navbarSupportedContent ">
+
+
+                <ul class="navbar-nav">
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/">Home <span class="sr-only">(current)</span></a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Contact</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button"
+                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            Basic Configurations
+                        </a>
+                        <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                            <span class="label label-success" style="color: black; margin-left: 10px; font-size: 10px;font-weight: bold;">Entry Form</span>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="/createpaymentheads">Create Payment Head</a>
+                            <a class="dropdown-item" href="/createpersoninfo">Student Information</a>
+                            <a class="dropdown-item" href="/studentwaiversetup">Student Waiver Setup</a>
+                            <a class="dropdown-item" href="/createprograms">Create Program</a>
+                            <a class="dropdown-item" href="/createbatches">Create Batch</a>
+                            <a class="dropdown-item" href="/createsemester">Create Semester</a>
+                            <a class="dropdown-item" href="/generatepayable">Generate Payable</a>
+                            <a class="dropdown-item" href="/paymentcollection">Payment Collection</a>
+                            <span class="label label-success" style="color: black; margin-left: 10px; font-size: 10px; font-weight: bold;">Reports</span>
+                            <div class="dropdown-divider">Something</div>
+                            <a class="dropdown-item" href="/rptcollection">Student Collections</a>
+                            <a class="dropdown-item" href="/rptstudentledger">Student Wise Ledger</a>
+                            <a class="dropdown-item" href="/rptbatchledger">Batch Wise Ledger</a>
+                            <a class="dropdown-item" href="/rptstudentledgercheck">DUE Check</a>
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <form th:action="@{/logout}">
+                            <button class="btn btn-outline-danger" type="submit">Logout</button>
+                        </form>
+
+                    </li>
+                </ul>
+
+            </div>
+        </div>
+    </nav>
+
+</div>

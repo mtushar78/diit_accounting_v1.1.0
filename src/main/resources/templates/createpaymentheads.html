@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/create-payment-head.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.jqueryui.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.material.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/datatables.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.bootstrap4.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.foundation.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.semanticui.min.css}"/>-->
+    <!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.uikit.min.css}"/>-->
+    <link rel="stylesheet" type="text/css" th:href="@{/css/jquery.dataTables.min.css}"/>
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/jquery.dataTables_themeroller.css}"/>-->
+
+
+</head>
+<body>
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<script type="text/javascript">
+
+    $(document).ready(function () {
+
+        viewPaymentHeads();
+
+
+        // function for validating form before submit
+        function validator() {
+
+            var headName = $.trim($("#headName").val());
+            if (headName == "") {
+                $("#errorMessage").html("!! Please enter a head name");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+            }
+
+            return true;
+        }
+
+        /* Submitting form to controller*/
+        $("#submit").click(function (event) {
+
+            event.preventDefault();
+
+            if (validator()) {
+
+                var data = {};
+
+                data["headName"] = $("#headName").val();
+
+                $.ajax({
+                    type: "POST",
+                    url: "saveheads/" + $("#tmpHeadId").val(),
+                    data: JSON.stringify(data),
+                    contentType: "application/json; charset=utf-8",
+                    success: function (data) {
+
+                        $("#btnClear").click();
+                        $("#submit").prop("disabled", false);
+                        $("#successMessage").html(data);
+                        $("#successMessage").removeClass("hidden");
+                        $("#errorMessage").addClass("hidden");
+                        viewPaymentHeads();
+                    },
+                    error: function (e) {
+                        $("#errorMessage").html("Error: Record Not Saved");
+                        $("#errorMessage").removeClass("hidden");
+                        $("#submit").prop("disabled", false);
+                        alert(JSON.stringify(e));
+                    }
+                });
+
+            } // End of validation
+        }); // End of form submission
+
+
+        $("#btnClear").click(function () {
+            $("#tmpHeadId").val(0);
+            $("#headName").val("");
+        });
+
+    }); // End of $(document).ready
+
+
+    function viewPaymentHeads() {
+
+        $.post("getallpaymentheads", function (data) {
+
+            $('#tblPaymentHeads').DataTable().destroy();
+            $("#tbodyPaymentHeads").empty();
+
+            var tr = '';
+            var itemId;
+            for (var key in data) {
+                tr += '<tr><td>'
+                    + data[key].headName
+                    + '</td><td style="display:none;">'
+                    + data[key].id
+                    + '</td><td>' +
+                    '<button class="btn btn-danger btn-sm " data-title="Delete"  data-target="#delete" id="delete" >Delete</button>';
+            }
+
+            $('#tblPaymentHeads').append(tr);
+
+
+            $('#tblPaymentHeads').DataTable({
+                "order": [1, 'asc']
+            });
+
+
+            //$("#tblAppraisalHeads tr").dblclick(function() {
+            $('#tblPaymentHeads tbody').on('dblclick', 'tr', function () {
+
+                $("#successMessage").addClass("hidden");
+                $("#errorMessage").addClass("hidden");
+
+                var tableData = $(this).children("td").map(function () {
+                    return $(this).text();
+
+                }).get();
+
+                $("#tmpHeadId").val(tableData[1]);
+                $("#headName").val(tableData[0]);
+            });
+        });
+    }
+
+
+</script>
+<div class="common">
+    <div class="bootstrap-iso">
+        <div class="container-fluid">
+            <div class="row">
+
+                <div class="col-7 shadow-item" style="right: 10px">
+                    <fieldset style="margin-bottom: 20px; margin-top: 20px;">
+                        <legend class="h4" style="margin:30px 0 20px 0;" id="selectedEmployeeTitle">Existing Data
+                        </legend>
+                        <table id="tblPaymentHeads" class="table">
+                            <thead>
+                            <tr>
+                                <th>Head Name</th>
+                                <th style="display:none;">Id</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody id="tbodyPaymentHeads">
+                            </tbody>
+                        </table>
+                    </fieldset>
+                </div>
+                <div class="col-5 shadow-item" style="left: 10px">
+                    <form id="frmPayment" class="well">
+                        <fieldset style="margin-bottom: 20px; margin-top: 20px;">
+                            <legend>Create Payment Head</legend>
+                            <!-- Form Name -->
+                            <input class="hidden form-control" id="tmpHeadId" name="tmpHeadId" type="text" value="0"/>
+
+                            <div id="successMessage" align="center" class="hidden alert alert-success"></div>
+                            <div id="errorMessage" align="center" class="hidden alert alert-danger"></div>
+
+                            <!-- Text input-->
+                            <div class="form-group">
+                                <label class="control-label requiredField" for="headName">Head Title</label>
+                                <div class="form-group">
+                                    <input id="headName" name="headName"
+                                           placeholder="Enter head title" class="form-control" type="text"/>
+
+                                </div>
+                            </div>
+
+                            <!-- Button -->
+                            <div class="form-group">
+                                <label class="col-md-4 control-label" for="submit"></label>
+                                <div class="col-md-6">
+                                    <input id="btnClear" type="button" name="btnClear" value="Clear Form"
+                                           class="btn btn-warning"/>
+                                    <button id="submit" name="submit" class="btn btn-primary">Save</button>
+                                </div>
+                            </div>
+
+
+                        </fieldset>
+                        <h6 class="bg-info">Note: If you want to update data, Please double click specific row from the
+                            grid, make change and click on save button. </h6>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="dialog-confirm" title="Are you sure you want to delete this?" style="display:none;">
+        <p><span class="ui-icon ui-icon-alert" style="float:left; margin:12px 12px 20px 0;"></span>The record will
+            delete permanently. Are you sure?</p>
+    </div>
+</div>
+
+<div th:replace="fragment/footer.html :: footer_rel"></div>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+
+</body>
+</html>

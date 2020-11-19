@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.jqueryui.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.material.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/datatables.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.bootstrap4.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.foundation.min.css}"/>-->
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.semanticui.min.css}"/>-->
+    <!--    <link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.uikit.min.css}"/>-->
+    <link rel="stylesheet" type="text/css" th:href="@{/css/jquery.dataTables.min.css}"/>
+<!--    <link rel="stylesheet" type="text/css" th:href="@{/css/jquery.dataTables_themeroller.css}"/>-->
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <style>
+        .shadow-item{
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+        }
+    </style>
+</head>
+<body>
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<script type="text/javascript">
+
+    $( function() {
+
+        $("#startFrom").datepicker({
+            dateFormat: 'yy-mm-dd'
+        });
+    });
+
+
+
+    var programList = [];
+    var paymentHead = [];
+    var cgpaSchemeList = [];
+    var cgpaExistingData = [];
+
+    $(document).ready(function() {
+
+        funGenerateProgramCombo();
+        funGenerateDataGrid();
+        funDisplayControl(0);
+
+
+        //Request sent to CgpaSchemeController
+        $.post("getallcgpascheme",function(data){
+
+            var cGPASchemeCombo = '<select id="fkCgpaScheme_1" name="fkCgpaScheme" class="form-control"><option value="null">--Select CGPA Range</option>';
+            cgpaSchemeList = [];
+            for(var key in data){
+                var tmpLowest = '';
+                var tmpHieght = '';
+
+                if(data[key].lowestValue > 5){
+                    tmpLowest = "5.00 (G)";
+                } else {
+                    tmpLowest = data[key].lowestValue;
+                }
+
+                if(data[key].hieghtValue > 5){
+                    tmpHieght = "5.00 (G)";
+                } else {
+                    tmpHieght = data[key].hieghtValue;
+                }
+
+                var element = {id:[],lowestValue:[],hieghtValue:[]};
+                element["id"]  = data[key].id;
+                element["lowestValue"]  = data[key].lowestValue;
+                element["hieghtValue"] = data[key].hieghtValue;
+
+                cgpaSchemeList.push(element);
+                cGPASchemeCombo += '<option value="' + data[key].id+ '">' + tmpLowest + ' - ' + tmpHieght + '</option>';
+            }
+
+            cGPASchemeCombo += '</select>';
+
+            $("#tdCGPARange_1").html(cGPASchemeCombo);
+
+        });
+
+
+
+        $.post("getallpaymentheads",function(data){
+            paymentHead = [];
+            var paymentHeadCombo = '<select id="fkPaymentHeadId_1" name="fkPaymentHeadId" class="form-control"><option value="null">--Select Payment Head</option>';
+
+            for(var key in data){
+
+                var element = {id:[],headName:[]};
+                element["id"]  = data[key].id;
+                element["headName"]  = data[key].headName;
+
+
+                paymentHead.push(element);
+                paymentHeadCombo += '<option value="' + data[key].id+ '">' + data[key].headName + '</option>';
+            }
+
+            paymentHeadCombo += '</select>';
+
+            $("#tdPaymentHead_1").html(paymentHeadCombo);
+        });
+
+
+
+
+
+        // function for validating form before submit
+        function validator(){
+
+            var program		= $.trim($("#fkProgramId").val());
+            var batchno		= $.trim($("#batchno").val());
+            var startdt		= $.trim($("#startFrom").val());
+
+            if(program == "null"){
+                $("#errorMessage").html("!! Please select a program");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+            } else if(batchno == ""){
+                $("#errorMessage").html("!! Please enter batch number");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+            } else if(startdt == ""){
+                $("#errorMessage").html("!! Please enter betch start date");
+                $("#errorMessage").removeClass("hidden");
+                $("#successMessage").addClass("hidden");
+                return false;
+            }
+
+            return true;
+        }
+
+
+
+        /* Submitting form to controller*/
+        $("#submit").click(function(event) {
+
+            event.preventDefault();
+
+            if (validator()){
+
+                var data = {};
+                var batchfees = [];
+                var existingArrayLength= cgpaExistingData.length;
+                var checkExistOrNot = false;
+
+
+                var valuesCGPAScheme =  $("select[name='fkCgpaScheme']").map(function(){return $(this).val();}).get();
+                var valuesPaymentHead =  $("select[name='fkPaymentHeadId']").map(function(){return $(this).val();}).get();
+                var valuesAmount = $("input[name='amount']").map(function(){return $(this).val();}).get();
+                var valuesPayTimes = $("input[name='payTimes']").map(function(){return $(this).val();}).get();
+                var valuesPayDuration = $("input[name='payDurationMonths']").map(function(){return $(this).val();}).get();
+
+                for(var i = 0; i < valuesCGPAScheme.length; i++){
+
+                    //if(funCheckExistingValue(valuesCGPAScheme[i],valuesPaymentHead[i]) == false){
+                    var element = {fkCgpaScheme:[],fkPaymentHeadId:[],amount:[],payTimes:[],payDurationMonths:[]};
+                    element["fkCgpaScheme"] 		= valuesCGPAScheme[i];
+                    element["fkPaymentHeadId"] 		= valuesPaymentHead[i];
+                    element["amount"] 				= valuesAmount[i];
+                    element["payTimes"] 			= valuesPayTimes[i];
+                    element["payDurationMonths"] 	= valuesPayDuration[i];
+
+                    batchfees.push(element);
+
+                    //}
+
+                }
+
+
+
+                data["programIdTmp"]		= $.trim($("#fkProgramId").val());
+                data["batchno"]				= $.trim($("#batchno").val());
+                data["startFrom"]			= $.trim($("#startFrom").val());
+                data["programBatchFees"]	= batchfees;
+
+
+
+                $.ajax({
+                    type: "POST",
+                    url: "saveprogrambatch/" + $("#tmpId").val(),
+                    data: JSON.stringify(data),
+                    contentType: "application/json; charset=utf-8",
+                    success: function (data) {
+
+
+                        $("#submit").prop("disabled", false);
+                        $("#successMessage").html(data);
+                        $("#successMessage").removeClass("hidden");
+                        $("#errorMessage").addClass("hidden");
+                        funRemoveFeeConfigRow();
+                        funGenerateDataGrid();
+                        cgpaExistingData = [];
+                    },
+                    error: function (e) {
+                        $("#errorMessage").html("Error: Record Not Saved");
+                        $("#errorMessage").removeClass("hidden");
+                        $("#submit").prop("disabled", false);
+                        alert(JSON.stringify(e));
+                    }
+                });
+
+            } // End of validation
+        }); // End of form submission
+
+
+        $("#btnClear").click(function(){
+            funRemoveFeeConfigRow();
+        });
+
+    }); // End of $(document).ready()
+
+
+
+
+
+    function funGenerateProgramCombo(varProgramList){
+
+        //Getting All Programs from database
+        $.post("getAllPrograms",function(data){
+
+            var combo = '<div class="col-12"><select id="fkProgramId" name="fkProgramId" class="form-control"><option value="null">--Select Program</option></div>';
+
+            for ( var key in data) {
+
+                var element = {id:[],programName:[],semesters:[],durationMonths:[]};
+                element["id"]  = data[key].id;
+                element["programName"]  = data[key].programName;
+                element["semesters"] = data[key].semesters;
+                element["durationMonths"]  = data[key].durationMonths;
+
+                programList.push(element);
+                combo += '<div class="col-12"><option value="' + data[key].id+ '">' + data[key].programName + '</option></div>';
+            }
+
+            combo += '</select>';
+            $("#divProgramList").html(combo);
+        });	 // End Post method program list
+    }
+
+
+
+
+
+    function funGenerateDataGrid(){
+
+        $('#tblBatch').DataTable().destroy();
+        $("#tbodyBatch").empty();
+        var tr = '';
+
+        $.post("getAllProgramBatchs",function(data){
+
+            //alert(JSON.stringify(data));
+            for(var key in data){
+
+                tr += '<tr><td style="display:none;">'
+                    + data[key].id
+                    + '</td><td style="display:none;">'
+                    + data[key].programs.id
+                    + '</td><td>'
+                    +  data[key].programs.programName
+                    + '</td><td>'
+                    + data[key].batchno
+                    + '</td><td>'
+                    + data[key].startFrom
+                    // + '</td><td><p data-placement="top" data-toggle="tooltip" title="Delete"> <button class="btn btn-danger btn-xs" data-title="Delete" data-toggle="modal" data-target="#delete"><span class="glyphicon glyphicon-trash"></span></button></p></td></tr>'
+                    + '</td><td><p data-placement="top" data-toggle="tooltip" title="Delete"> <button type="button" class="btn btn-outline-danger btn-sm" data-title="Delete" data-toggle="modal" data-target="#delete">Delete</button></p></td></tr>';
+
+            }
+
+            $('#tblBatch').append(tr);
+
+            $('#tblBatch').DataTable({
+                "order": [ 0, 'asc']
+            });
+
+            $('#tblBatch tbody').on('dblclick', 'tr', function () {
+
+                $("#successMessage").addClass("hidden");
+                $("#errorMessage").addClass("hidden");
+                $("#divEntryForm").css("display", "inline");
+                $("#divGrid").css("display", "none");
+
+                var tableData = $(this).children("td").map(function() {
+                    return $(this).text();
+
+                }).get();
+
+                //alert(tableData); return false;
+                $("#fkProgramId").val(tableData[1]);
+                $("#batchno").val(tableData[3]);
+                $("#startFrom").val(tableData[4]);
+                $("#tmpId").val(tableData[0]);
+
+                funRemoveFeeConfigRow();
+                cgpaExistingData = [];
+
+                $.post("getbatchfeesbybatch",{batchId:tableData[0]},function(data){
+
+                    for(var key in data){
+
+                        var element = {fkCgpaScheme:[],fkPaymentHeadId:[],amount:[],payTimes:[],payDurationMonths:[]};
+                        element["fkCgpaScheme"] 		= data[key].cgpaSchemeId;
+                        element["fkPaymentHeadId"] 		= data[key].paymentHeadId;
+                        element["amount"] 				= data[key].amount;
+                        element["payTimes"] 			= data[key].payTimes;
+                        element["payDurationMonths"] 	= data[key].payDurationMonths;
+
+                        cgpaExistingData.push(element);
+
+
+                        if(parseInt(key) < 1){
+
+                            $("#fkCgpaScheme_1").val(data[key].cgpaSchemeId);
+                            $("#fkPaymentHeadId_1").val(data[key].paymentHeadId);
+                            $("#amount_1").val(data[key].amount);
+                            $("#payTimes_1").val(data[key].payTimes);
+                            $("#payDurationMonths_1").val(data[key].payDurationMonths);
+
+                        } else {
+
+                            funAddFeeConfigRow();
+
+                            $("#fkCgpaScheme_" + (parseInt(key) + 1) ).val(data[key].cgpaSchemeId);
+                            $("#fkPaymentHeadId_" + (parseInt(key) + 1)).val(data[key].paymentHeadId);
+                            $("#amount_" + (parseInt(key) + 1)).val(data[key].amount);
+                            $("#payTimes_" + (parseInt(key) + 1)).val(data[key].payTimes);
+                            $("#payDurationMonths_" + (parseInt(key) + 1)).val(data[key].payDurationMonths);
+                        }
+                    }
+
+                    //alert(JSON.stringify(cgpaExistingData));
+                });
+            });
+
+
+        });
+    }
+
+
+
+
+    function funDisplayControl(controlType){
+
+        if(controlType == 0){
+
+            //$("#btnClear").click();
+            $("#divEntryForm").css("display", "none");
+            $("#divGrid").css("display", "inline");
+
+        } else if(controlType == 1) {
+            $("#divEntryForm").css("display", "inline");
+            $("#divGrid").css("display", "none");
+        }
+    }
+
+
+
+
+    function funGenerateCgpaSchemeCombo(rowNumber){
+
+        var cGPASchemeCombo = '<select id="fkCgpaScheme_' + rowNumber + '" name="fkCgpaScheme" class="form-control"><option value="null">--Select CGPA Range</option>';
+
+        for(var key in cgpaSchemeList){
+
+            var tmpLowest = '';
+            var tmpHieght = '';
+
+            if(cgpaSchemeList[key].lowestValue > 5){
+                tmpLowest = "5.00 (G)";
+            } else {
+                tmpLowest = cgpaSchemeList[key].lowestValue;
+            }
+
+            if(cgpaSchemeList[key].hieghtValue > 5){
+                tmpHieght = "5.00 (G)";
+            } else {
+                tmpHieght = cgpaSchemeList[key].hieghtValue;
+            }
+
+            cGPASchemeCombo += '<option value="' + cgpaSchemeList[key].id+ '">' + tmpLowest + ' - ' + tmpHieght + '</option>';
+        }
+
+        cGPASchemeCombo += '</select>';
+
+        $("#tdCGPARange_" + rowNumber).html(cGPASchemeCombo);
+    }
+
+
+
+
+
+    function funGeneratePaymentHeadCombo(rowNumber){
+
+        var paymentHeadCombo = '<select id="fkPaymentHeadId_' + rowNumber + '" name="fkPaymentHeadId" class="form-control"><option value="null">--Select Payment Head</option>';
+
+        for(var key in paymentHead){
+            paymentHeadCombo += '<option value="' + paymentHead[key].id+ '">' + paymentHead[key].headName + '</option>';
+        }
+
+        paymentHeadCombo += '</select>';
+
+        $("#tdPaymentHead_" + rowNumber).html(paymentHeadCombo);
+    }
+
+
+
+
+
+    // function for adding table row with detail records
+    function funAddFeeConfigRow(){
+
+        var rwoNumber = $('#tblFeeConfig tr').length;
+
+        $('#tblFeeConfig tr:last').after('<tr height="20">'
+            + '<td class="padding" align="center" id="tdCGPARange_' + rwoNumber + '"></td>'
+            + '<td class="padding" align="center" id="tdPaymentHead_' + rwoNumber + '"></td>'
+            + '<td class="padding" align="center"><input class="form-control" id="amount_' + rwoNumber + '" name="amount" style="" type="text" /></td>'
+            + '<td class="padding" align="center"><input class="form-control" id="payTimes_' + rwoNumber + '" name="payTimes" style="" type="text" /></td>'
+            + '<td class="padding" align="center"><input class="form-control" id="payDurationMonths_' + rwoNumber + '" name="payDurationMonths" style="" type="text" /></td>'
+            + '</tr>');
+
+        funGenerateCgpaSchemeCombo(rwoNumber);
+        funGeneratePaymentHeadCombo(rwoNumber);
+
+    }
+
+
+
+
+
+    function funDeleteRow(){
+        if($('#tblFeeConfig tr').length > 2){
+
+            $('#tblFeeConfig tr:last').remove();
+        }
+    }
+
+
+
+
+    // function for removing detail table all rows
+    function funRemoveFeeConfigRow(){
+
+        var tblLength = $('#tblFeeConfig tr').length;
+
+        for( var i = 0; i <  (tblLength - 2); i++){
+            $('#tblFeeConfig tr:last').remove();
+        }
+
+        $("#fkCgpaScheme_1").val("null");
+        $("#fkPaymentHeadId_1").val("null");
+        $("#amount_1").val("");
+        $("#payTimes_1").val("");
+        $("#payDurationMonths_1").val("");
+    }
+
+
+
+
+
+    function funCheckExistingValue(cgpaScheme, headId){
+        var check = false;
+        $.each(cgpaExistingData, function(i, v) {
+
+            if (v.fkCgpaScheme == cgpaScheme && v.fkPaymentHeadId == headId) {
+
+                check = true;
+
+                return
+            }
+        });
+
+        return check;
+    }
+</script>
+<div class="common">
+
+    <div class="bootstrap-iso">
+        <div class="container-fluid shadow-item">
+            <div class="row">
+                <div class="col-xs-12 col-sm-12 col-md-12">
+                    <fieldset>
+                        <div style="margin-top: 15px">
+                            <ul class="h4 nav nav-tabs" id="myTab" role="tablist">
+                                <li class="nav-item">
+                                    <a class="nav-link active" id="home-tab" data-toggle="tab" href="javascript:void(0)" onclick="funDisplayControl(0)" role="tab" aria-controls="home" aria-selected="true">Existing Data</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" id="profile-tab" data-toggle="tab" href="javascript:void(0)" onclick="funDisplayControl(1)" role="tab" aria-controls="profile" aria-selected="false">Create New</a>
+                                </li>
+                            </ul>
+                        </div>
+
+                    </fieldset>
+                </div>
+                <div class="col-xs-12 col-sm-12 col-md-12" id="divGrid">
+                    <fieldset style="margin-bottom: 15px">
+<!--                        <legend class="h4" style="margin:30px 0 20px 0;" id="selectedEmployeeTitle">Existing Data</legend>-->
+                        <div style="margin: 10px"></div>
+                        <table id="tblBatch" class="table" style="width:100%" >
+                            <thead>
+                            <tr>
+                                <th style="display:none;">Id</th>
+                                <th style="display:none;">Id</th>
+                                <th>Program Name</th>
+                                <th>Batch No</th>
+                                <th>Start From</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody id="tbodyBatch">
+                            </tbody>
+                        </table>
+                    </fieldset>
+                    <h5 class="alert alert-warning">Note: If you want to update data, Please double click specific row from the grid, make change and click on save button. </h5>
+                </div>
+                <div class="col-xs-12 col-sm-12 col-md-12" id="divEntryForm" style="display:none;">
+                    <form id="frmBatch" class="well">
+                        <fieldset>
+                            <div style="margin: 10px"></div>
+                            <!-- Form Name -->
+                            <input class="hidden form-control" id="tmpId" name="tmpId"  type="text" value="0" />
+
+                            <div id="successMessage" align="center" class="hidden alert alert-success"></div>
+                            <div id="errorMessage" align="center" class="hidden alert alert-danger"></div>
+
+                            <!-- Text input-->
+                            <div class="form-group">
+                                <label class="control-label requiredField" for="fkProgramId">Program</label>
+                                <div class="form-group row" id="divProgramList">
+
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-6">
+
+                                    <div class="form-group">
+                                        <label class="control-label requiredField" for="batchno">Batch No</label>
+                                        <input id="batchno" name="batchno" placeholder="Enter Batch No" class="form-control" type="text" required="required" />
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-group" id="marksVersion">
+                                        <label class="control-label requiredField" for="startFrom">Start From</label>
+                                        <input id="startFrom" name="startFrom" placeholder="Enter Mother's Name" class="form-control" type="text" readonly="readonly" required="required"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <fieldset>
+                                    <legend class="h4">Fees Configuration</legend>
+                                    <div class="row" style="margin-left: 0px;margin-right: 0px; width:200px">
+                                        <div class="btn-group" role="group" style="width: 100% !important">
+										<span class="btn-group" style="width: 100% !important">
+											<input class="btn btn-primary" style="color: #FF0000; font-size: 20px; font-weight: bold; width: 160px; height: 40px;"
+                                                   name="add_button" value=" + " onclick="funAddFeeConfigRow()" width="100%" type="button" height="100%" />
+											<input class="btn btn-success" style="color: #FF0000; font-size: 20px; font-weight: bold; width: 160px; height: 40px;"
+                                                   id="del_button" name="del_button" value=" - " onclick="funDeleteRow()" width="100%" type="button" height="100%" />
+										</span>
+
+                                        </div>
+                                    </div>
+                                    <table id="tblFeeConfig" style="font-family: Arial, Helvetica, sans-serif; font-size: 12px">
+                                        <tbody>
+                                        <tr height="20">
+                                            <th width="20%" align="center">CGPA Scheme</th>
+                                            <th width="20%" align="center">Payment Head</th>
+                                            <th width="20%" align="center">Amount</th>
+                                            <th width="20%" align="center">Pay Times</th>
+                                            <th width="20%" align="center">Pay Duration</th>
+                                        </tr>
+                                        <tr height="20">
+                                            <td class="padding" align="center" id="tdCGPARange_1"></td>
+                                            <td class="padding" align="center" id="tdPaymentHead_1"></td>
+                                            <td class="padding" align="center">
+                                                <input class="form-control" id="amount_1" name="amount" style="" type="text" />
+                                            </td>
+                                            <td class="padding" align="center">
+                                                <input class="form-control" id="payTimes_1" name="payTimes" style="" type="text" />
+                                            </td>
+                                            <td class="padding" align="center">
+                                                <input class="form-control" id="payDurationMonths_1" name="payDurationMonths" style="" type="text" />
+                                            </td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </fieldset>
+                            </div>
+
+
+                            <!-- Button -->
+                            <div class="form-group form-group d-flex justify-content-center" style="margin-top: 40px">
+                                <label class="col-md-4 control-label" for="submit"></label>
+                                <div class="col-md-6">
+                                    <input id="btnClear" type="button" name="btnClear" value="Clear Form" class="btn btn-warning" />
+                                    <button id="submit" name="submit" class="btn btn-primary">Save Data</button>
+                                </div>
+                            </div>
+
+
+                        </fieldset>
+                    </form>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="dialog-confirm" title="Are you sure you want to delete this?" style="display:none;">
+        <p><span class="ui-icon ui-icon-alert" style="float:left; margin:12px 12px 20px 0;"></span>The record will delete permanently. Are you sure?</p>
+    </div>
+</div>
+<div th:replace="fragment/footer.html :: footer_rel"></div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+
+</body>
+</html>

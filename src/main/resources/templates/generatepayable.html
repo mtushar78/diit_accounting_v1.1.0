@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>DIIT Accounting Software</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/common.css}"/>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/bootstrap-select.min.css}"/>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+</head>
+<body>
+<div th:replace="fragment/navbar.html :: nav"></div>
+<div th:replace="fragment/tags.html :: tags"></div>
+
+<script>
+
+    var programList = [];
+    var batchList = [];
+    var paymentHeadList = [];
+    var studentInfoList = [];
+    var studentPayable = [];
+    var currentYear = new Date().getFullYear();
+
+
+    $(document).ready(function(){
+        $('#monthYear').monthpicker({
+            pattern: 'yyyy-mm',
+            selectedYear: currentYear,
+            startYear: currentYear,
+            finalYear: currentYear + 4
+        });
+
+        funGenerateProgramCombo();
+        funGetAllBatch();
+
+        // function for validating form before submit
+        function validator(){
+
+
+            var program = $("#programId").val();
+            var batch 	= $("#fkProgramBatchId").val();
+            var yearMonth =  $("#monthYear").val();
+
+            if(program == 'null'){
+                alert("Please select a program");
+                return false;
+            } else if(batch == 'null'){
+                alert("Please select a batch");
+                return false;
+            } else if($.trim(yearMonth) == ''){
+                alert("Please enter payable month and year");
+                return false;
+            } else if(paymentHeadList.length < 1){
+                alert("Please select payment head");
+                return false;
+            }
+
+            return true;
+        }
+
+        /* Submitting form to controller*/
+        $("#submit").click(function(event) {
+
+            event.preventDefault();
+
+            if (validator()){
+
+                var data = [];
+                var selectedValue;
+                studentPayable = [];
+
+                $("input:checkbox[name=studentPaymentHead]:checked").each(function(){
+
+                    selectedValue = $(this).val().split("_");
+                    var element = {fkStudentId:[],payMonth:[],fkPaymentHead:[],amount:[]};
+
+                    element["fkStudentId"] 		= selectedValue[0];
+                    element["payMonth"] 		= $("#monthYear").val();
+                    element["fkPaymentHead"] 	= selectedValue[1];
+                    element["amount"] 			= selectedValue[2];
+
+                    data.push(element);
+                });
+
+
+                $.ajax({
+                    type: "POST",
+                    url: "savestudentpayable",
+                    data: JSON.stringify(data),
+                    contentType: "application/json",
+                    success: function (data) {
+
+                        $("#submit").prop("disabled", false);
+                        $("#successMessage").html(data);
+                        $("#successMessage").removeClass("hidden");
+                        $("#errorMessage").addClass("hidden");
+                        funGenerateDataGrid(programList);
+                    },
+                    error: function (e) {
+                        $("#errorMessage").html("Error: Record Not Saved");
+                        $("#errorMessage").removeClass("hidden");
+                        $("#submit").prop("disabled", false);
+                        alert(JSON.stringify(e));
+                    }
+                });
+
+            } // End of validation
+        }); // End of form submission
+
+    }); //End of $(document).ready
+
+    //request sent to PaymentHeadsController
+    $.post("getallpaymentheads", function(data){
+
+
+        if ( data.length == 0 ) {
+
+            $("#paymentDetails").html("Payable not created. Please create payable first.");
+        } else{
+
+            var paymentHeads = '<ul class="list-group"><li class="list-group-item">'
+                + '<ul class="list-inline"><li style="width:30px; ">'
+                + '</li><li align="left">Payable Head</li></ul></li>';
+
+            for(var key in data){
+
+                paymentHeads += '<li class="list-group-item">'
+                    + '<ul class="list-inline"><li style="width:30px;float:left"><input id="headId_' + data[key].id + '" class="payables" name="paymentHead" value="' + data[key].id + '" type="checkbox" >'
+                    + '</li><li align="left">' + data[key].headName
+                    + '</li></ul></li>';
+            }
+
+            paymentHeads += '</ul>';
+            $("#divPaymentHeads").html(paymentHeads);
+
+            $(':checkbox[name=paymentHead]').on('change', function() {
+                paymentHeadList = $(':checkbox[name=paymentHead]:checked').map(function() {
+                    return this.value;
+
+
+                }).get();
+
+            });
+        }
+    });
+
+
+
+
+
+
+    //Function for generating program combo
+    function funGenerateProgramCombo(){
+
+        //Getting All Programs from database
+        $.post("getAllPrograms",function(data){
+
+            var combo = '<select id="programId" name="programId" class="form-control" onchange="funGenerateBatchCombo()"><option value="null">Select Program</option>';
+
+            for ( var key in data) {
+
+                var element = {id:[],programName:[],semesters:[],durationMonths:[]};
+                element["id"]  = data[key].id;
+                element["programName"]  = data[key].programName;
+                element["semesters"] = data[key].semesters;
+                element["durationMonths"]  = data[key].durationMonths;
+
+                programList.push(element);
+                combo += '<option value="' + data[key].id+ '">' + data[key].programName + '</option>';
+            }
+
+            combo += '</select>';
+            $("#divProgramList").html(combo);
+        });	 // End Post method program list
+    }
+
+
+
+
+
+    // function for employee search by department
+    function funGenerateBatchCombo(){
+
+        filteredBatchs = [];
+
+
+        var combo = '<select id="fkProgramBatchId" name="fkProgramBatchId" class="form-control" onchange="funGetStudentsForBatch()"><option value="null">Select Batch</option>';
+
+        var data = $.grep( batchList, function( n, i ) {
+            return $.trim(n.programId) === $.trim($("#programId").val());
+        });
+
+        for ( var key in data) {
+
+            combo += '<option value="' + data[key].id+ '">' + data[key].batchNo + '</option>';
+        }
+
+        combo += '</select>';
+        $("#divBatchList").html(combo);
+    }
+
+
+
+
+
+
+
+    //Function for generating program batch json list
+    function funGetAllBatch(){
+
+        //request sent to ProgramBatchsController
+        $.post("getAllProgramBatchs",function(data){
+
+            for(key in data){
+
+                var element = {id:[],programId:[],batchNo:[]};
+
+                element["id"] = data[key].id;
+                element["programId"] = data[key].programs.id;
+                element["batchNo"] = data[key].batchno;
+
+                batchList.push(element);
+            }
+        });
+    }
+
+
+
+
+
+
+
+    //Function for generating payable
+    function funGeneratePayable(){
+
+        var program = $("#programId").val();
+        var batch 	= $("#fkProgramBatchId").val();
+        var yearMonth =  $("#monthYear").val();
+
+
+        if(program == 'null'){
+            alert("Please select a program");
+            return false;
+        } else if(batch == 'null'){
+            alert("Please select a batch");
+            return false;
+        } else if($.trim(yearMonth) == ''){
+            alert("Please enter payable month and year");
+            return false;
+        } else if(paymentHeadList.length < 1){
+            alert("Please select payment head");
+            return false;
+        } else {
+
+            //request sent to ProgramBatchsController
+            $.post("getbatchfeesbybatch",{batchId: batch},function(data){
+
+                var selectedHeadFees = [];
+
+                var payableInfoDetails = '<ul class="list-group"><li class="list-group-item">'
+                    + '<ul class="list-inline"><li style="width:30px; float: left"><input id="studentHeadSelectAll" class="studentPayables" name="studentPaymentHeadAll" value="" type="checkbox" >'
+                    + '</li><li align="left" style="width:100px; float: left"><b><em>Student ID</em></b>'
+                    + '</li><li align="left" style="width:300px; float: left"><b><em>Name</em></b>'
+                    + '</li><li align="left" style="width:200px; display:none; float: left"><b><em>Head ID</em></b>'
+                    + '</li><li align="left" style="width:300px; float: left"><b><em>Payment Head</em></b>'
+                    + '</li><li align="left" style="width:150px; float: left"><b><em>Amount</em></b>'
+                    + '</li></ul></li>';
+
+                // Getting payable heads with details
+                for(var key in data){
+                    var element = {programBatchId:[],headId:[],headName:[],cgpaScheme:[], fees:[]};
+                    $.each(paymentHeadList, function(i, v) {
+
+                        if (paymentHeadList[i] == data[key].paymentHeadId) {
+
+                            element["programBatchId"] = data[key].batchId;
+                            element["headId"] = data[key].paymentHeadId;
+                            element["headName"] = data[key].headName;
+                            element["cgpaScheme"] = data[key].cgpaSchemeId;
+                            element["fees"] = data[key].amount;
+                            selectedHeadFees.push(element);
+                            return;
+                        }
+                    });
+                }
+
+
+                //Generating payable head for students
+                for(var key in studentInfoList){
+
+                    $.each(selectedHeadFees, function(i, v) {
+
+                        if (v.cgpaScheme == studentInfoList[key].cgpaSchemeId) {
+
+                            payableInfoDetails += '<li class="list-group-item"><ul class="list-inline"><li style="width:30px; float: left"><input id="headId_' + studentInfoList[key].studentId + '_' + v.headId + '" class="studentPayables" name="studentPaymentHead" value="' + studentInfoList[key].studentId + '_' + v.headId + '_' + v.fees + '" type="checkbox" >'
+                                + '</li><li align="left" style="width:100px; float: left">' + studentInfoList[key].studentId
+                                + '</li><li align="left" style="width:300px; float: left">' + studentInfoList[key].name
+                                + '</li><li align="left" style="width:200px; display:none; float: left">' + v.headId
+                                + '</li><li align="left" style="width:300px; float: left">' + v.headName
+                                + '</li><li align="left" style="width:150px; float: left">' + v.fees
+                                + '</li></ul></li>';
+                            return;
+                        }
+                    });
+
+
+                }
+
+                payableInfoDetails += '</ul>';
+
+                $("#paymentDetails").html(payableInfoDetails);
+
+                $("#studentHeadSelectAll").click(function () {
+                    $(".studentPayables").prop('checked', $(this).prop('checked'));
+
+                });
+            });
+
+
+        }
+    }
+
+
+
+
+
+
+
+    //Getting batch wise all students
+    function funGetStudentsForBatch(){
+        var batch 	= $("#fkProgramBatchId").val();
+
+
+        //request sent to PersonInfosController
+        $.post("getbatchwiseallstudents",{batchId: batch},function(data){
+            studentInfoList = [];
+
+            for(var key in data){
+                var element = {studentId:[],name:[],admissionDate:[],programName:[],batchno:[],ssccgpa:[],hsccgpa:[],cgpaSchemeId:[],contactNo:[]};
+                element["studentId"] 		= data[key].studentId;
+                element["name"] 			= data[key].name;
+                element["admissionDate"] 	= data[key].admissionDate;
+                element["programName"] 		= data[key].programName;
+                element["batchno"] 			= data[key].batchno;
+                element["ssccgpa"] 			= data[key].ssccgpa;
+                element["hsccgpa"] 			= data[key].hsccgpa;
+                element["cgpaSchemeId"] 	= data[key].cgpaSchemeId;
+                element["contactNo"] 		= data[key].contactNo;
+
+                studentInfoList.push(element);
+            }
+        });
+
+
+    }
+
+</script>
+<div class="common">
+    <div class="bootstrap-iso">
+        <div class="container-fluid">
+            <div class="row">
+
+
+                <div class="col-xs-12 col-sm-12 col-md-12">
+                    <form id="frmPayment" class="well">
+
+                        <fieldset>
+                            <!-- legend class="alert alert-info">Payment Collection</legend-->
+
+
+                            <!-- Form Name -->
+                            <input class="hidden form-control" id="tmpHeadId" name="tmpHeadId" type="text" value="0" />
+
+
+                            <div class="row">
+                                <div class="col-6 form-group required" >
+                                    <label class="control-label requiredField" for="fkProgramBatchId">Program</label>
+                                    <div class="form-group" id="divProgramList"></div>
+                                    <label class="control-label requiredField" for="fkProgramBatchId">Batch</label>
+                                    <div class="form-group" id="divBatchList"></div>
+                                    <label class="control-label requiredField" for="monthYear">Month/Year</label>
+                                    <div class="form-group" id="divBatchList"><input id="monthYear" name="monthYear" class="form-control" type="text" value="" /> </div>
+                                    <div class="form-group" align="center">
+                                        <input id="btnClear" type="button" name="btnClear" value="Generate Payable" class="btn btn-info" onclick="funGeneratePayable()" />
+                                    </div>
+                                </div>
+                                <div class="col-6 form-group" style="overflow-y: scroll; height: 350px">
+                                    <div class="form-group" id="divPaymentHeads" style="background-color: white;"></div>
+                                </div>
+                            </div>
+
+                            <div id="successMessage" align="center" class="hidden alert alert-success"></div>
+                            <div id="errorMessage" class="alert-danger" style="display: none;"></div>
+
+                            <div class="row">
+                                <div class="col-lg-12">
+                                    <div class="form-group">
+                                        <h4 style=" border-bottom: #999999 1px solid;">Payable Details</h4>
+                                    </div>
+                                    <div class="form-group" id="paymentDetails" style="position: relative; overflow: auto; height: 400px; width: 100%; background-color: white; border: double #000000;"></div>
+                                </div>
+                            </div>
+
+
+                            <!-- Button -->
+                            <div class="form-group">
+                                <label class="col-md-4 control-label" for="submit"></label>
+                                <div class="col-md-6" id="divButtons">
+                                    <input id="btnClear" type="button" name="btnClear" value="Clear Form" class="btn btn-warning" />
+                                    <button id="submit" name="submit" class="btn btn-primary">Save Data</button>
+                                </div>
+                            </div>
+
+
+                        </fieldset>
+                    </form>
+                    <h5 class="bg-info">Note: If you want to update data, Please double click specific row from the grid, make change and click on save button. </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="dialog-confirm" title="Are you sure you want to delete this?" style="display:none;">
+        <p><span class="ui-icon ui-icon-alert" style="float:left; margin:12px 12px 20px 0;"></span>The record will delete permanently. Are you sure?</p>
+    </div>
+</div>
+<div th:replace="fragment/footer.html :: footer_rel"></div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+        crossorigin="anonymous"></script>
+
+</body>
+</html>
