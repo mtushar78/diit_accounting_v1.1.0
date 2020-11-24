@@ -1,47 +1,35 @@
 package maksudul.projects.accounting.model;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 
 public class VwProgramBatchFees implements Serializable {
 
     private static final long serialVersionUID = 1L;
-
-
     private int programId;
-
     private int programBatchFeeId;
     private String programName;
-
-
     private int batchId;
     private String batchno;
-
-
     private int paymentHeadId;
     private String headName;
-
-
     private int cgpaSchemeId;
-    private float amount;
+    private BigDecimal amount;
     private int payTimes;
     private int payDurationMonths;
 
     public int getProgramId() {
         return programId;
     }
-
     public void setProgramId(int programId) {
         this.programId = programId;
     }
-
     public int getProgramBatchFeeId() {
         return programBatchFeeId;
     }
-
     public void setProgramBatchFeeId(int programBatchFeeId) {
         this.programBatchFeeId = programBatchFeeId;
     }
-
     public String getProgramName() {
         return programName;
     }
@@ -90,11 +78,11 @@ public class VwProgramBatchFees implements Serializable {
         this.cgpaSchemeId = cgpaSchemeId;
     }
 
-    public float getAmount() {
+    public BigDecimal getAmount() {
         return amount;
     }
 
-    public void setAmount(float amount) {
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
 
@@ -121,7 +109,7 @@ public class VwProgramBatchFees implements Serializable {
     public VwProgramBatchFees() {
     }
 
-    public VwProgramBatchFees(int programId, int programBatchFeeId, String programName, int batchId, String batchno, int paymentHeadId, String headName, int cgpaSchemeId, float amount, int payTimes, int payDurationMonths) {
+    public VwProgramBatchFees(int programId, int programBatchFeeId, String programName, int batchId, String batchno, int paymentHeadId, String headName, int cgpaSchemeId, BigDecimal amount, int payTimes, int payDurationMonths) {
         this.programId = programId;
         this.programBatchFeeId = programBatchFeeId;
         this.programName = programName;
