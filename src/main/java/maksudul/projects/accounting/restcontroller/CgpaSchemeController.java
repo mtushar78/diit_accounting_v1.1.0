@@ -1,4 +1,4 @@
-package maksudul.projects.accounting.controller;
+package maksudul.projects.accounting.restcontroller;
 
 import maksudul.projects.accounting.model.CgpaScheme;
 import maksudul.projects.accounting.model.ProgramBatchFees;
@@ -34,6 +34,11 @@ public class CgpaSchemeController {
         return cgpaRepo.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
+    @RequestMapping(value="/getCGPASchemeByProgramBatch",method=RequestMethod.POST)
+    public List<CgpaScheme> getCGPASchemeByProgramBatch(@RequestParam("programBatchId") String programBatchId){
+
+        return cgpaRepo.getCGPASchemeByProgramBatch(Integer.parseInt(programBatchId));
+    }
 
 
 

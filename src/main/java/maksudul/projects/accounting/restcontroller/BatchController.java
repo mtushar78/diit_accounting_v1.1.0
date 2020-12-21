@@ -1,4 +1,4 @@
-package maksudul.projects.accounting.controller;
+package maksudul.projects.accounting.restcontroller;
 
 import maksudul.projects.accounting.model.BatchSemesterInfo;
 import maksudul.projects.accounting.model.ProgramBatchs;

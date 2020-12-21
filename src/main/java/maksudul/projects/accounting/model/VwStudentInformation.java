@@ -226,4 +226,29 @@ public class VwStudentInformation implements Serializable {
 		this.bloodGroup = bloodGroup;
 	}
 
+	@Override
+	public String toString() {
+		return "VwStudentInformation{" +
+				"id=" + id +
+				", fkPersonId=" + fkPersonId +
+				", studentId='" + studentId + '\'' +
+				", ssccgpa=" + ssccgpa +
+				", hsccgpa=" + hsccgpa +
+				", cgpaSchemeId=" + cgpaSchemeId +
+				", fkProgramBatchId=" + fkProgramBatchId +
+				", fkProgramId=" + fkProgramId +
+				", programName='" + programName + '\'' +
+				", batchno='" + batchno + '\'' +
+				", activationStatus=" + activationStatus +
+				", admissionDate='" + admissionDate + '\'' +
+				", startingSemesterNo=" + startingSemesterNo +
+				", name='" + name + '\'' +
+				", fathersName='" + fathersName + '\'' +
+				", mothersName='" + mothersName + '\'' +
+				", dateOfBirth='" + dateOfBirth + '\'' +
+				", contactNo='" + contactNo + '\'' +
+				", nid='" + nid + '\'' +
+				", bloodGroup='" + bloodGroup + '\'' +
+				'}';
+	}
 }

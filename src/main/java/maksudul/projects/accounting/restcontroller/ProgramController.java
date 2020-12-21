@@ -1,6 +1,5 @@
-package maksudul.projects.accounting.controller;
+package maksudul.projects.accounting.restcontroller;
 
-import maksudul.projects.accounting.model.PaymentHeads;
 import maksudul.projects.accounting.model.Programs;
 import maksudul.projects.accounting.repositories.ProgramsRepo;
 import org.springframework.beans.factory.annotation.Autowired;

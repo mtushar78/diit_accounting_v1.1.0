@@ -1,12 +1,20 @@
 package maksudul.projects.accounting.model;
+import org.hibernate.annotations.Immutable;
+
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import java.io.Serializable;
 import java.math.BigDecimal;
 
-
+@Entity
+@Immutable
+@Table(name = "vwprogrambatchfees")
 public class VwProgramBatchFees implements Serializable {
 
     private static final long serialVersionUID = 1L;
     private int programId;
+    @Id
     private int programBatchFeeId;
     private String programName;
     private int batchId;
